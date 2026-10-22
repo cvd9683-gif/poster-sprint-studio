@@ -1,6 +1,6 @@
 /* Poster Sprint Studio v2: Today / Challenges / The Wall. Classic script, no build step. */
 (() => {
-  const { PRACTICES, EXTRA_LESSONS, SCENARIOS, SKILLS, SKILL_ORDER, BRIEFS } = window.STUDIO_DATA;
+  const { FORMATS, FORMAT_ORDER, FBRIEFS, PRACTICES, EXTRA_LESSONS, SCENARIOS, SKILLS, SKILL_ORDER, BRIEFS } = window.STUDIO_DATA;
   const LESSONS = window.LESSONS;
   const $ = (id) => document.getElementById(id);
   const pad = (n) => String(n).padStart(2, '0');
@@ -9,7 +9,7 @@
   const dateKey = (d = new Date()) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
   const COLORS = { red: '#e5322d', violet: '#5b3fd1', pink: '#ff3e9a', mustard: '#f2b705', green: '#12a150', ink: '#111111' };
-  const kindOf = (k) => SCENARIOS[k] || PRACTICES[k] || SCENARIOS.own;
+  const kindOf = (k) => FORMATS[k] || SCENARIOS[k] || PRACTICES[k] || SCENARIOS.own;
   const colorOf = (k) => COLORS[kindOf(k).color] || COLORS.red;
 
   const params = new URLSearchParams(location.search);
@@ -34,25 +34,39 @@
     c.scenario = 'own'; c.own = c.topic || (PRACTICES[c.practice] || {}).name || 'your own project';
     c.plan = k ? 'one' : 'mixed'; c.skill = k || null; c.practice = 'own';
   });
+  // v5 migration: every older challenge is a Poster; its scenario becomes the optional context.
+  state.challenges.forEach((c) => {
+    if (c.format) return;
+    c.format = 'poster'; c.context = c.scenario && c.scenario !== 'own' ? c.scenario : ''; c.ctxText = c.scenario === 'own' ? (c.own || '') : ''; c.own = ''; c.practice = 'poster';
+  });
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
 
   let pieces = [];
   const loadPieces = async () => { pieces = (await DB.all('pieces')).sort((a, b) => a.createdAt - b.createdAt); };
 
   // ---- challenges ----
-  const makeChallenge = (scenario, own, plan, skill, days, sprintMin) => ({ id: uid(), scenario, practice: scenario, own, plan, skill, days, sprintMin, createdAt: Date.now() });
+  const makeChallenge = (format, own, context, ctxText, plan, skill, days, sprintMin) => ({ id: uid(), format, practice: format, own, context, ctxText, plan, skill, days, sprintMin, createdAt: Date.now() });
   const byId = (id) => state.challenges.find((c) => c.id === id);
   const cap = (t) => t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
-  const nameOf = (c) => c.scenario === 'own' ? cap(c.own || 'Make your own') : SCENARIOS[c.scenario].name;
+  const ctxOf = (c) => c.context && SCENARIOS[c.context] ? SCENARIOS[c.context].name : (c.ctxText || '');
+  const fmtName = (c) => c.format === 'own' ? cap(c.own || 'Make your own') : (FORMATS[c.format] || FORMATS.poster).name;
+  const nameOf = (c) => fmtName(c) + (ctxOf(c) ? ' · ' + ctxOf(c) : '');
   const skillFor = (c, day) => c.plan === 'one' && SKILLS[c.skill] ? c.skill : SKILL_ORDER[(day - 1) % SKILL_ORDER.length];
   const doneFor = (c) => pieces.filter((p) => p.challengeId === c.id && !p.demo);
   const currentDay = (c) => { const n = doneFor(c).length + 1; return n > c.days ? null : n; };
   const promptFor = (c, day) => {
-    const S = SCENARIOS[c.scenario] || SCENARIOS.own; const sk = skillFor(c, day); const i = day - 1;
-    const job = S.jobs.length ? S.jobs[i % S.jobs.length] : { title: cap(c.own || 'Your poster'), for: c.own || 'your own project', copy: '' };
-    const cell = BRIEFS[sk][c.scenario] || BRIEFS[sk].own;
-    const [brief, constraint] = cell[(c.plan === 'one' ? i : Math.floor(i / SKILL_ORDER.length)) % cell.length];
-    return { title: job.title, brief: brief.replace('{job}', job.for) + (job.copy ? ' Copy: ' + job.copy : ''), constraint, focus: SKILLS[sk].lesson, skill: SKILLS[sk].name, scenario: S.name === 'Make your own' ? (c.own || 'Make your own') : S.name, context: job.for };
+    const fk = FORMATS[c.format] ? c.format : 'poster'; const F = FORMATS[fk]; const sk = skillFor(c, day); const i = day - 1;
+    const v = (cell) => cell[(c.plan === 'one' ? i : Math.floor(i / SKILL_ORDER.length)) % cell.length];
+    const ctx = ctxOf(c); const S = SCENARIOS[c.context];
+    const base = { focus: SKILLS[sk].lesson, skill: SKILLS[sk].name, format: fmtName(c), formatKey: fk, context: ctx, scenario: ctx };
+    if (fk === 'poster') {
+      const job = S && S.jobs.length ? S.jobs[i % S.jobs.length] : { title: ctx ? cap(ctx) + ' — poster' : 'Poster', for: ctx ? 'a poster for ' + ctx : 'a poster on a topic you pick', copy: '' };
+      const [brief, constraint] = v(BRIEFS[sk][S && S.jobs.length ? c.context : 'own']);
+      return Object.assign(base, { piece: 'poster', title: job.title, brief: brief.replace('{job}', job.for) + (job.copy ? ' Copy: ' + job.copy : ''), constraint });
+    }
+    const piece = F.pieces.length ? F.pieces[i % F.pieces.length] : (c.own || 'piece');
+    const [brief, constraint] = v(FBRIEFS[fk][sk]);
+    return Object.assign(base, { piece, title: cap(piece) + (ctx ? ' — ' + ctx : ''), brief: brief.replace('{piece}', piece) + (ctx ? ' Context: ' + ctx + (S ? ' — ' + S.line : '') : ''), constraint });
   };
   const norm = (s) => String(s).toLowerCase().replace(/\band\b|[^a-z]/g, '');
   const lessonFor = (c, day) => {
@@ -122,11 +136,11 @@
     add.onclick = () => go('challenges'); box.append(add);
   };
 
-  // ---- new challenge: scenario, then skill plan ----
-  let pick = null, plan = 'mixed', planSkill = null;
+  // ---- new challenge: format, skills, optional context ----
+  let pick = null, plan = 'mixed', planSkill = null, ctxPick = '';
   const renderChallenges = () => {
     const box = $('typeCards'); box.innerHTML = '';
-    Object.entries(SCENARIOS).forEach(([k, v]) => {
+    FORMAT_ORDER.forEach((k) => { const v = FORMATS[k];
       const card = el('button', 'tcard' + (pick === k ? ' on' : '')); card.type = 'button'; card.style.setProperty('--c', colorOf(k));
       card.append(el('b', '', v.name), el('span', '', v.line));
       card.onclick = () => { const first = !pick; pick = k; renderChallenges(); if (k === 'own') $('nfOwn').focus(); if (first) setTimeout(() => $('newForm').scrollIntoView({ behavior: 'smooth', block: 'start' }), 30); };
@@ -143,13 +157,16 @@
     const sb = $('skillChips'); sb.innerHTML = ''; sb.hidden = false;
     SKILL_ORDER.forEach((k) => { const c = el('button', 'chip' + (plan === 'one' && planSkill === k ? ' on' : ''), SKILLS[k].name); c.type = 'button'; c.onclick = () => { plan = 'one'; planSkill = k; renderChallenges(); }; sb.append(c); });
     sb.classList.toggle('dim', plan !== 'one');
+    const cb = $('ctxChips'); cb.innerHTML = '';
+    Object.entries(SCENARIOS).filter(([k]) => k !== 'own').forEach(([k, v]) => { const c = el('button', 'chip' + (ctxPick === k ? ' on' : ''), v.name.replace(' brand', '').replace(' flyer', '')); c.type = 'button'; c.onclick = () => { ctxPick = ctxPick === k ? '' : k; if (ctxPick) $('nfCtx').value = ''; renderChallenges(); }; cb.append(c); });
   };
+  $('nfCtx').addEventListener('input', () => { if ($('nfCtx').value && ctxPick) { ctxPick = ''; renderChallenges(); } });
   $('newForm').querySelectorAll('.seg').forEach((sg) => sg.addEventListener('click', (e) => { if (e.target.tagName !== 'BUTTON') return; sg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === e.target)); }));
   $('newForm').addEventListener('submit', (e) => {
     e.preventDefault(); if (!pick) return;
     const f = $('newForm'); const seg = (n) => Number(f.querySelector(`.seg[data-name=${n}] .on`).value);
-    const c = makeChallenge(pick, pick === 'own' ? $('nfOwn').value.trim() : '', plan, plan === 'one' ? planSkill : null, seg('days'), seg('sprint'));
-    state.challenges.push(c); save(); pick = null; plan = 'mixed'; planSkill = null; $('nfOwn').value = ''; openDay(c.id);
+    const c = makeChallenge(pick, pick === 'own' ? $('nfOwn').value.trim() : '', ctxPick, ctxPick ? '' : $('nfCtx').value.trim(), plan, plan === 'one' ? planSkill : null, seg('days'), seg('sprint'));
+    state.challenges.push(c); save(); pick = null; plan = 'mixed'; planSkill = null; ctxPick = ''; $('nfOwn').value = ''; $('nfCtx').value = ''; openDay(c.id);
   });
 
   // ---- day view ----
@@ -179,7 +196,7 @@
     if (!day) { ['brief', 'lesson', 'sprint', 'submit'].forEach((k) => { $('s-' + k).hidden = true; }); $('dayMeta').textContent = nameOf(c); return; }
     const p = promptFor(c, day);
     $('dayMeta').textContent = 'Day ' + day + ' of ' + c.days;
-    $('pFocus').textContent = 'Day ' + day + ' · ' + p.skill + ' — for ' + p.context;
+    $('pFocus').textContent = 'Day ' + day + ' · ' + p.skill + ' — ' + p.piece + (p.context ? ' · for ' + p.context : '');
     $('pTitle').textContent = p.title; $('pBrief').textContent = p.brief;
     $('pConstraint').textContent = p.constraint;
     setStep(step);
@@ -363,7 +380,8 @@
     e.preventDefault();
     if (!upload) { $('saveMsg').textContent = 'Add your exported piece first.'; drop.classList.add('nudge'); setTimeout(() => drop.classList.remove('nudge'), 600); return; }
     const c = openC(); const day = currentDay(c); const fd = new FormData(e.target);
-    const piece = { id: uid(), challengeId: c.id, challengeName: nameOf(c), practice: c.scenario, day, prompt: promptFor(c, day), blob: upload, mime: upload.type, reflection: { tried: fd.get('tried'), worked: '', change: fd.get('change') }, critique: null, date: dateKey(), createdAt: Date.now(), demo: false };
+    const piece = { id: uid(), challengeId: c.id, challengeName: nameOf(c), practice: c.format || 'poster', format: c.format || 'poster', day, prompt: promptFor(c, day), blob: upload, mime: upload.type, reflection: { tried: fd.get('tried'), worked: '', change: fd.get('change') }, critique: null, date: dateKey(), createdAt: Date.now(), demo: false };
+    if (piece.format !== 'poster') { try { piece.sheet = await makeSheet(upload, (FORMATS[piece.format] || FORMATS.own).tag, piece.prompt.piece); } catch (err) {} }
     await DB.put('pieces', piece); await loadPieces();
     if (state.sprint && state.sprint.challengeId === c.id) stopSprint();
     upload = null; e.target.reset(); drop.querySelectorAll('img').forEach((n) => n.remove()); drop.classList.remove('has'); $('dropHint').hidden = false;
@@ -376,15 +394,30 @@
     Feedback.open(piece, blobUrl(piece.id, piece.blob), crit, { onWall: () => Feedback.close(), retry: () => window.critique({ blob: piece.blob, prompt: piece.prompt, practice: piece.practice, reflection: piece.reflection }).then(async (cr) => { piece.critique = cr; await DB.put('pieces', piece); return cr; }) });
   });
 
+  // Non-poster work gets printed out: the image on a paper sheet with a stamped format tag (aspect ratio kept).
+  const makeSheet = (blob, tag, piece) => new Promise((res, rej) => {
+    const img = new Image(); img.onload = () => {
+      const W = 1200, pad = 70, iw = W - pad * 2, ih = Math.round(iw * img.height / img.width), maxH = 1700;
+      const h = Math.min(ih, maxH), w = h < ih ? Math.round(h * img.width / img.height) : iw;
+      const c = document.createElement('canvas'); c.width = W; c.height = h + pad * 2 + 70; const g = c.getContext('2d');
+      g.fillStyle = '#f4f1ea'; g.fillRect(0, 0, c.width, c.height);
+      g.drawImage(img, (W - w) / 2, pad, w, h); g.strokeStyle = 'rgba(0,0,0,.15)'; g.strokeRect((W - w) / 2, pad, w, h);
+      g.font = '600 26px Helvetica, Arial, sans-serif'; g.fillStyle = '#555'; g.fillText(String(piece || '').toUpperCase(), pad, c.height - 44);
+      g.save(); g.translate(W - pad - 10, c.height - 52); g.rotate(-0.06); g.font = '900 34px Helvetica, Arial, sans-serif';
+      const tw = g.measureText(tag).width + 28; g.strokeStyle = '#e5322d'; g.lineWidth = 4; g.strokeRect(-tw, -30, tw, 46); g.fillStyle = '#e5322d'; g.fillText(tag, -tw + 14, 5); g.restore();
+      c.toBlob((b) => b ? res(b) : rej(new Error('sheet')), 'image/png');
+    }; img.onerror = rej; img.src = URL.createObjectURL(blob);
+  });
+
   // ---- the wall ----
   const urls = new Map();
   const blobUrl = (id, blob) => { if (!urls.has(id)) urls.set(id, URL.createObjectURL(blob)); return urls.get(id); };
   const visible = () => pieces.filter((p) => !p.demo || state.settings.demo);
   const mediaFor = (p) => {
     if (p.svg) { const d = el('div', 'svgwrap'); d.innerHTML = p.svg; return d; }
-    const m = el('img'); m.src = blobUrl(p.id, p.blob); m.alt = p.prompt.title; m.draggable = false; return m;
+    const m = el('img'); m.src = p.sheet ? blobUrl(p.id + ':s', p.sheet) : blobUrl(p.id, p.blob); m.alt = p.prompt.title; m.draggable = false; return m;
   };
-  const srcOf = (p) => p.svg ? 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(p.svg.replace('<svg ', '<svg width="600" height="800" ')) : blobUrl(p.id, p.blob);
+  const srcOf = (p) => p.svg ? 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(p.svg.replace('<svg ', '<svg width="600" height="800" ')) : p.sheet ? blobUrl(p.id + ':s', p.sheet) : blobUrl(p.id, p.blob);
   let pasting = null; let use3d = null;
   const has3d = async () => {
     if (use3d !== null) return use3d;
@@ -395,7 +428,7 @@
   };
   const renderWall = async () => {
     const list = visible();
-    $('stats').textContent = list.length + (list.length === 1 ? ' poster' : ' posters');
+    $('stats').textContent = list.length + (list.length === 1 ? ' poster' : ' pieces');
     if (await has3d()) Wall3D.render($('wall3d'), list, srcOf, (id) => openPiece(id), pasting);
     else Wall.render($('wall'), list, mediaFor, (id) => openPiece(id));
   };

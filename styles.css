@@ -290,3 +290,4 @@ textarea{font:inherit;font-size:18px}
 .tcard.small{min-height:130px}.tcard.small::before{display:none}
 #skillChips{margin-top:-12px}#skillChips.dim .chip{opacity:.45}
 .tcard{padding-top:74px}.tcard.small{padding-top:22px}.kicker{font-size:22px}
+#ctxChips{margin-bottom:10px}.nf-row small{font-weight:400;opacity:.5;font-size:.6em;display:block}

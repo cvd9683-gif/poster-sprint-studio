@@ -14,7 +14,7 @@ const SYSTEM = 'You are a warm but honest design critic for a student doing a sh
 const userText = (b) => {
   const p = b.prompt || {}; const r = b.reflection || {};
   return `Practice: ${b.practice || 'poster'}\nTopic: "${p.title || ''}"\nBrief: ${p.brief || ''}\n` +
-    `Constraint: ${p.constraint || ''}\nFocus skill: ${p.skill || p.focus || ''}\nScenario (client/context): ${p.scenario || ''}${p.context ? ' — ' + p.context : ''}\nTeach this skill as it applies to this scenario: notes, fixes and redesign should target the focus skill for this kind of client.\n\n` +
+    `Constraint: ${p.constraint || ''}\nFocus skill: ${p.skill || p.focus || ''}\nFormat: ${p.format || 'Poster'}${p.piece ? ' (' + p.piece + ')' : ''}\nContext/topic (optional): ${p.context || 'none'}\nTeach this skill as it applies to this format (and context if given): notes, fixes and redesign must target the focus skill for this kind of piece, using conventions of that format (e.g. UI patterns for app screens, web sections, brand assets).\n\n` +
     `Designer's reflection:\n- What I tried: ${r.tried || '-'}\n- What I'd change: ${r.change || '-'}\n\n` +
     'Teach, do not just grade. Point at 2 to 4 specific regions of the image. Reply with strict JSON only:\n' +
     '{"reply":"one sentence responding to their reflection",' +

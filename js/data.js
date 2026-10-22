@@ -186,5 +186,43 @@
       own: [['Make {job} with a clear first, second, third read.', 'Three levels of text.'], ['Make {job} where the smallest text is the most important.', 'Pull the eye with color or space.']] }
   };
   const SKILL_LESSONS = {};
-  window.STUDIO_DATA = { PRACTICES, EXTRA_LESSONS, TOPICS, FOCI, SCENARIOS, SKILLS, SKILL_ORDER, BRIEFS };
+
+  // ===== v5: FORMAT x skill (x optional context). One piece per day, sized to one sprint. =====
+  const FORMATS = {
+    poster: { name: 'Poster', tag: 'POSTER', color: 'red', line: 'One poster a day.', pieces: ['poster'] },
+    app: { name: 'App screen', tag: 'APP', color: 'violet', line: 'One screen a day.', pieces: ['onboarding screen', 'settings screen', 'checkout screen', 'empty state', 'profile screen', 'search results screen'] },
+    web: { name: 'Website', tag: 'WEB', color: 'green', line: 'One section a day.', pieces: ['hero section', 'pricing section', 'footer', 'feature grid', 'signup section', 'testimonials section'] },
+    brand: { name: 'Branding', tag: 'BRAND', color: 'mustard', line: 'One brand piece a day.', pieces: ['logo mark', 'wordmark', 'color palette', 'business card', 'social post', 'brand pattern'] },
+    own: { name: 'Make your own', tag: 'OWN', color: 'pink', line: 'You name the thing.', pieces: [] }
+  };
+  const FORMAT_ORDER = ['poster', 'app', 'web', 'brand', 'own'];
+  // FBRIEFS[format][skill] = [[brief, constraint], ...]; {piece} = today's piece. Poster uses BRIEFS (scenario table).
+  const FBRIEFS = {
+    app: {
+      type: [['Design the {piece} using type as the main interface.', 'One typeface, max 3 sizes, no icons.'], ['Make the {piece} readable at arm’s length.', 'Body text ≥ 16px; one bold weight only.']],
+      color: [['Design the {piece} with one accent color doing all the pointing.', 'Neutral UI + one accent, used only on the primary action.'], ['Make a dark-mode {piece}.', 'No pure black; check contrast on every text.']],
+      layout: [['Lay out the {piece} so the primary action is obvious in 2 seconds.', 'One primary button, in thumb reach.'], ['Design the {piece} with generous breathing room.', '8px spacing system; nothing closer than 16px.']],
+      grid: [['Build the {piece} on a 4-column mobile grid.', '16px margins, everything snaps to columns.'], ['Design the {piece} as a list or card grid.', 'Every row identical height; one row breaks it on purpose.']],
+      image: [['Design the {piece} with one illustration or photo that sets the mood.', 'One image only; crop it hard.'], ['Make the {piece} using icons as the image.', 'One icon style, one stroke width.']],
+      hierarchy: [['Design the {piece} so the eye goes title → info → action.', 'Exactly three levels of emphasis.'], ['Make the {piece} with one thing clearly first.', 'The most important element is 3x the next.']] },
+    web: {
+      type: [['Design the {piece} where the headline does the selling.', 'Headline ≥ 64px; one typeface.'], ['Set the {piece} like a magazine page.', 'A serif + a sans, nothing else.']],
+      color: [['Design the {piece} with a bold background color.', 'Full-bleed color + one contrasting accent.'], ['Make the {piece} feel calm with color.', 'Max 3 colors, all low saturation.']],
+      layout: [['Lay out the {piece} with an asymmetric split.', '60/40 split; nothing centered.'], ['Design the {piece} at desktop width with one strong focal point.', 'One element takes ≥ 50% of the section.']],
+      grid: [['Build the {piece} on a 12-column grid.', 'Show the grid in your file; everything snaps.'], ['Design the {piece} as a modular grid of cards.', '3 columns; one card spans two.']],
+      image: [['Design the {piece} around one hero image.', 'Image bleeds off one edge.'], ['Make the {piece} with no photos.', 'Shapes, type or illustration only.']],
+      hierarchy: [['Design the {piece} so it reads in 5 seconds: what, why, act.', 'One headline, one line of support, one button.'], ['Make the {piece} scannable.', 'Max 12 words visible above the fold.']] },
+    brand: {
+      type: [['Design the {piece} using only type.', 'One typeface; modify at least one letter.'], ['Make the {piece} with custom letter spacing as the idea.', 'Tracking is your main tool.']],
+      color: [['Design the {piece} with a signature color.', 'One ownable color + one neutral.'], ['Make the {piece} work in one color.', 'Single color, no gradients.']],
+      layout: [['Design the {piece} with deliberate placement and margins.', 'Equal margins; one off-center element.'], ['Make the {piece} with a strong edge.', 'Something touches or crosses an edge.']],
+      grid: [['Build the {piece} on a construction grid.', 'Draw the grid; show it alongside the piece.'], ['Design the {piece} from simple geometric modules.', 'Only circles, squares and lines on a grid.']],
+      image: [['Design the {piece} from a single symbol.', 'One drawn symbol, no photos.'], ['Make the {piece} with an image treatment that could be the brand style.', 'Duotone or halftone only.']],
+      hierarchy: [['Design the {piece} so the name reads first.', 'The name is the largest thing by far.'], ['Make the {piece} work at tiny size.', 'Must read at 32px wide.']] },
+    own: {
+      type: [['Make your {piece} with type as the hero.', 'One typeface, three sizes.']], color: [['Make your {piece} with a limited palette.', 'Exactly 3 colors.']],
+      layout: [['Make your {piece} with a layout you’d normally avoid.', 'Nothing centered.']], grid: [['Build your {piece} on a grid you draw first.', 'Sketch the grid before anything else.']],
+      image: [['Make your {piece} around one image.', 'One image, cropped hard.']], hierarchy: [['Make your {piece} with a clear 1-2-3 reading order.', 'Three levels of emphasis, no more.']] }
+  };
+  window.STUDIO_DATA = { FORMATS, FORMAT_ORDER, FBRIEFS, PRACTICES, EXTRA_LESSONS, TOPICS, FOCI, SCENARIOS, SKILLS, SKILL_ORDER, BRIEFS };
 })();

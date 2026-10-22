@@ -29,13 +29,14 @@
 
     <section class="view" id="v-challenges" hidden>
       <h1 class="h-xl">New challenge</h1>
-      <h2 class="nf-step">Who is it for?</h2>
+      <h2 class="nf-step">What are you making?</h2>
       <div class="types" id="typeCards"></div>
       <form class="newf" id="newForm" hidden autocomplete="off">
-        <div class="nf-row" id="nfOwnRow" hidden><h2>Client</h2><div><input id="nfOwn" placeholder="e.g. my friend’s bakery"></div></div>
+        <div class="nf-row" id="nfOwnRow" hidden><h2>Format</h2><div><input id="nfOwn" placeholder="e.g. album cover, menu, packaging"></div></div>
         <h2 class="nf-step">Skills</h2>
         <div class="types two" id="planCards"></div>
         <div class="chips" id="skillChips"></div>
+        <div class="nf-row"><h2>Topic <small>optional</small></h2><div><div class="chips" id="ctxChips"></div><input id="nfCtx" placeholder="or type your own, e.g. a bakery"></div></div>
         <div class="nf-row"><h2>Days</h2><div class="seg" data-name="days"><button type="button" value="3">3</button><button type="button" value="5" class="on">5</button><button type="button" value="10">10</button><button type="button" value="30">30</button></div></div>
         <div class="nf-row"><h2>Sprint</h2><div class="seg" data-name="sprint"><button type="button" value="10">10 min</button><button type="button" value="20" class="on">20 min</button><button type="button" value="45">45 min</button></div></div>
         <button class="btn hot big" type="submit">Start</button>

@@ -10,7 +10,7 @@ module.exports = async (req, res) => {
     const m = /^data:(image\/(png|jpeg|webp));base64,(.+)$/.exec(b.image || '');
     if (!m) return res.status(400).json({ available: false, reason: 'bad_image' });
     const moves = (b.moves || []).map((x) => '- ' + x.action).join('\n');
-    const prompt = 'Edit this poster design. Keep the same words, layout idea, style, and palette, but apply these changes:\n' + moves + '\n' + (b.summary || '') + '\nReturn only the edited poster image at the same aspect ratio.';
+    const prompt = 'Edit this design. Keep the same words, layout idea, style, and palette, but apply these changes:\n' + moves + '\n' + (b.summary || '') + '\nReturn only the edited image at the same aspect ratio.';
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
       body: JSON.stringify({ contents: [{ parts: [{ inline_data: { mime_type: m[1], data: m[3] } }, { text: prompt }] }], generationConfig: { responseModalities: ['IMAGE', 'TEXT'] } })
