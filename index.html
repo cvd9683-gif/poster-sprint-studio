@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Poster Sprint Studio</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app" id="app">
+  <aside class="side" id="side">
+    <div class="brand"><p class="label">Poster Sprint</p><p class="label mid">Studio</p></div>
+    <nav class="nav" id="nav">
+      <button data-view="today" class="navb">Today</button>
+      <button data-view="challenges" class="navb">Challenges</button>
+      <button data-view="archive" class="navb">Archive</button>
+      <button data-view="settings" class="navb">Settings</button>
+    </nav>
+    <div class="side-prog" id="sideProg"></div>
+    <p class="label mid side-foot" id="devTag" hidden>Debug speed on</p>
+  </aside>
+
+  <main class="main" id="main">
+    <!-- TODAY -->
+    <section class="view" id="v-today">
+      <header class="vhead">
+        <div class="meta label" id="todayMeta"></div>
+        <div class="tabs" id="tabs">
+          <button class="tab" data-tab="brief">Brief</button>
+          <button class="tab" data-tab="lesson">Lesson</button>
+          <button class="tab" data-tab="refs">References</button>
+          <button class="tab" data-tab="submit">Submit</button>
+        </div>
+      </header>
+      <div class="pane" id="t-brief">
+        <p class="label mid" id="pFocus"></p>
+        <h1 class="p-title" id="pTitle"></h1>
+        <p class="p-brief" id="pBrief"></p>
+        <dl class="p-dl">
+          <div><dt class="label">Constraint</dt><dd id="pConstraint"></dd></div>
+          <div><dt class="label">Focus</dt><dd id="pFocus2"></dd></div>
+          <div><dt class="label">Sprint</dt><dd id="pLen"></dd></div>
+        </dl>
+        <div class="row"><button class="btn" id="startBtn">Start sprint</button><button class="btn quiet" id="toLessonBtn">Read the lesson first</button></div>
+      </div>
+      <div class="pane" id="t-lesson" hidden>
+        <div class="l-screen" id="lScreen"></div>
+        <div class="l-nav"><button class="btn quiet" id="prevBtn">Prev</button><span class="label" id="lCount"></span><button class="btn quiet" id="nextBtn">Next</button></div>
+      </div>
+      <div class="pane" id="t-refs" hidden>
+        <div class="refs-bar">
+          <p class="label">References board</p>
+          <p class="mid small">Drop or paste images, paste a URL, or jot a note. Saved to this day.</p>
+        </div>
+        <div class="refs-input">
+          <input id="refText" type="text" placeholder="Paste a URL or write a note, then Enter">
+          <label class="btn quiet"><input type="file" id="refFile" accept="image/*" multiple hidden>Add images</label>
+        </div>
+        <div class="refs-board" id="refsBoard"><p class="drop-hint" id="dropHint">Drop images here</p></div>
+      </div>
+      <div class="pane" id="t-submit" hidden>
+        <div class="sub-grid">
+          <div>
+            <p class="label">Finished piece</p>
+            <label class="upload" id="uploadBox"><input type="file" id="pieceFile" accept="image/*,video/*" hidden><span id="uploadHint">Upload image, GIF, or video</span></label>
+          </div>
+          <form id="reflectForm" class="reflect">
+            <p class="label">Reflection</p>
+            <label>What did I try?<textarea name="tried" rows="3" required></textarea></label>
+            <label>What worked?<textarea name="worked" rows="3" required></textarea></label>
+            <label>What would I change?<textarea name="change" rows="3" required></textarea></label>
+            <button class="btn" type="submit" id="saveBtn">Save to archive</button>
+            <p class="small mid" id="saveMsg"></p>
+          </form>
+        </div>
+      </div>
+      <div class="pane" id="t-none" hidden>
+        <h1 class="p-title">Challenge complete.</h1>
+        <p class="p-brief">Every day is in your archive. Start a new challenge to keep going.</p>
+        <div class="row"><button class="btn" data-go="challenges">New challenge</button><button class="btn quiet" data-go="archive">Open archive</button></div>
+      </div>
+    </section>
+
+    <!-- CHALLENGES -->
+    <section class="view" id="v-challenges" hidden>
+      <header class="vhead"><p class="label">Challenges</p></header>
+      <p class="label mid">Pick a practice</p>
+      <div class="cards" id="practiceCards"></div>
+      <form class="setup" id="setupForm">
+        <div class="custom" id="customFields" hidden>
+          <label>Title<input name="title" placeholder="e.g. Album covers for imaginary bands"></label>
+          <label>Brief<textarea name="brief" rows="2"></textarea></label>
+          <label>Constraint<input name="constraint"></label>
+          <label>Focus skill<input name="focus" placeholder="e.g. Hierarchy"></label>
+        </div>
+        <div class="opts">
+          <fieldset><legend class="label">Days</legend><div class="seg" data-name="days"><button type="button" value="5">5</button><button type="button" value="10" class="on">10</button><button type="button" value="30">30</button></div></fieldset>
+          <fieldset><legend class="label">Sprint</legend><div class="seg" data-name="sprint"><button type="button" value="10">10 min</button><button type="button" value="20" class="on">20 min</button></div></fieldset>
+        </div>
+        <button class="btn" type="submit">Start challenge</button>
+      </form>
+      <p class="label mid">Your challenges</p>
+      <ul class="clist" id="challengeList"></ul>
+    </section>
+
+    <!-- ARCHIVE -->
+    <section class="view" id="v-archive" hidden>
+      <header class="vhead"><p class="label">Archive</p><div class="row"><button class="btn quiet" id="exportBtn">Export JSON</button><label class="btn quiet"><input type="file" id="importFile" accept="application/json" hidden>Import JSON</label></div></header>
+      <div class="stats" id="stats"></div>
+      <div class="grid" id="archiveGrid"></div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="view" id="v-settings" hidden>
+      <header class="vhead"><p class="label">Settings</p></header>
+      <form class="settings" id="settingsForm">
+        <fieldset><legend class="label">AI feedback (optional)</legend>
+          <p class="small mid">Your key stays in this browser (localStorage) and is sent only to the provider you choose. Leave it empty to skip AI feedback.</p>
+          <label>Provider<select name="provider"><option value="gemini">Google Gemini</option><option value="anthropic">Anthropic Claude</option></select></label>
+          <label>API key<input name="key" type="password" autocomplete="off" placeholder="Paste your key"></label>
+          <label>Model<input name="model" placeholder="default"></label>
+        </fieldset>
+        <fieldset><legend class="label">Sprint</legend>
+          <label class="check"><input type="checkbox" name="chime"> Soft chime between stages</label>
+        </fieldset>
+        <fieldset><legend class="label">Demo</legend>
+          <label class="check"><input type="checkbox" name="demo"> Show demo pieces in archive (for presentations)</label>
+        </fieldset>
+        <button class="btn" type="submit">Save settings</button> <span class="small mid" id="setMsg"></span>
+      </form>
+    </section>
+  </main>
+
+  <aside class="dock" id="dock">
+    <p class="label">Coach</p>
+    <div class="d-clock" id="dClock">20:00</div>
+    <div class="d-bar"><i id="dBar"></i></div>
+    <p class="label d-stage" id="dStage">Ready</p>
+    <div class="d-note" id="dNote"><span>Start the sprint when you are ready.</span></div>
+    <ol class="d-stages" id="dStages"></ol>
+    <div class="d-ctrl">
+      <button class="btn" id="dStart">Start</button>
+      <button class="btn quiet" id="dPause" hidden>Pause</button>
+      <button class="btn quiet" id="dFocus">Focus mode</button>
+      <button class="btn quiet" id="dReset" hidden>Reset</button>
+    </div>
+  </aside>
+</div>
+
+<div class="modal" id="modal" hidden><div class="m-box" id="mBox"></div></div>
+
+<script src="js/lessons.js"></script>
+<script src="js/data.js"></script>
+<script src="js/db.js"></script>
+<script src="js/critique.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
