@@ -1,6 +1,6 @@
 /* Poster Sprint Studio v2: Today / Challenges / The Wall. Classic script, no build step. */
 (() => {
-  const { PRACTICES, EXTRA_LESSONS, TOPICS, FOCI } = window.STUDIO_DATA;
+  const { PRACTICES, EXTRA_LESSONS, SCENARIOS, SKILLS, SKILL_ORDER, BRIEFS } = window.STUDIO_DATA;
   const LESSONS = window.LESSONS;
   const $ = (id) => document.getElementById(id);
   const pad = (n) => String(n).padStart(2, '0');
@@ -9,7 +9,8 @@
   const dateKey = (d = new Date()) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
   const COLORS = { red: '#e5322d', violet: '#5b3fd1', pink: '#ff3e9a', mustard: '#f2b705', green: '#12a150', ink: '#111111' };
-  const colorOf = (practice) => COLORS[(PRACTICES[practice] || {}).color] || COLORS.red;
+  const kindOf = (k) => SCENARIOS[k] || PRACTICES[k] || SCENARIOS.own;
+  const colorOf = (k) => COLORS[kindOf(k).color] || COLORS.red;
 
   const params = new URLSearchParams(location.search);
   const SPEED = Math.max(1, Number(params.get('speed')) || 1);
@@ -25,27 +26,38 @@
     const raw = JSON.parse(localStorage.getItem(KEY)) || {};
     state = Object.assign(fresh(), raw || {});
   } catch (e) { state = fresh(); }
+  // v4 migration: older challenges (practice + focus + topic) become 'Make your own' scenarios.
+  const skillKey = (focus) => { const n = String(focus || '').toLowerCase(); return SKILL_ORDER.find((k) => n.includes(k) || n.includes(SKILLS[k].lesson.toLowerCase().split(' ')[0])) || (n.includes('typo') ? 'type' : n.includes('compos') ? 'layout' : null); };
+  state.challenges.forEach((c) => {
+    if (c.scenario) return;
+    const k = skillKey(c.focus);
+    c.scenario = 'own'; c.own = c.topic || (PRACTICES[c.practice] || {}).name || 'your own project';
+    c.plan = k ? 'one' : 'mixed'; c.skill = k || null; c.practice = 'own';
+  });
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
 
   let pieces = [];
   const loadPieces = async () => { pieces = (await DB.all('pieces')).sort((a, b) => a.createdAt - b.createdAt); };
 
   // ---- challenges ----
-  const makeChallenge = (practice, days, sprintMin, focus, topic) => ({ id: uid(), practice, days, sprintMin, focus, topic, createdAt: Date.now() });
+  const makeChallenge = (scenario, own, plan, skill, days, sprintMin) => ({ id: uid(), scenario, practice: scenario, own, plan, skill, days, sprintMin, createdAt: Date.now() });
   const byId = (id) => state.challenges.find((c) => c.id === id);
   const cap = (t) => t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
-  const nameOf = (c) => (c.topic ? cap(c.topic) : PRACTICES[c.practice].name);
+  const nameOf = (c) => c.scenario === 'own' ? cap(c.own || 'Make your own') : SCENARIOS[c.scenario].name;
+  const skillFor = (c, day) => c.plan === 'one' && SKILLS[c.skill] ? c.skill : SKILL_ORDER[(day - 1) % SKILL_ORDER.length];
   const doneFor = (c) => pieces.filter((p) => p.challengeId === c.id && !p.demo);
   const currentDay = (c) => { const n = doneFor(c).length + 1; return n > c.days ? null : n; };
   const promptFor = (c, day) => {
-    const P = PRACTICES[c.practice] || PRACTICES.own; const i = day - 1;
-    const t = c.topic || 'anything you care about';
-    return { title: c.topic ? cap(c.topic) : P.name, brief: P.briefs[i % P.briefs.length].replace('{t}', t.toLowerCase()), constraint: P.constraints[i % P.constraints.length], focus: c.focus || P.focus };
+    const S = SCENARIOS[c.scenario] || SCENARIOS.own; const sk = skillFor(c, day); const i = day - 1;
+    const job = S.jobs.length ? S.jobs[i % S.jobs.length] : { title: cap(c.own || 'Your poster'), for: c.own || 'your own project', copy: '' };
+    const cell = BRIEFS[sk][c.scenario] || BRIEFS[sk].own;
+    const [brief, constraint] = cell[(c.plan === 'one' ? i : Math.floor(i / SKILL_ORDER.length)) % cell.length];
+    return { title: job.title, brief: brief.replace('{job}', job.for) + (job.copy ? ' Copy: ' + job.copy : ''), constraint, focus: SKILLS[sk].lesson, skill: SKILLS[sk].name, scenario: S.name === 'Make your own' ? (c.own || 'Make your own') : S.name, context: job.for };
   };
   const norm = (s) => String(s).toLowerCase().replace(/\band\b|[^a-z]/g, '');
   const lessonFor = (c, day) => {
     const f = norm(promptFor(c, day).focus);
-    const hit = LESSONS.find((l) => !l.recap && norm(l.focus) === f) || Object.values(EXTRA_LESSONS).find((l) => norm(l.focus) === f) || (c.practice === 'poster' ? LESSONS[(day - 1) % 9] : null);
+    const hit = LESSONS.find((l) => !l.recap && norm(l.focus) === f) || Object.values(EXTRA_LESSONS).find((l) => norm(l.focus) === f) || null;
     return hit || { focus: promptFor(c, day).focus, examples: [], what: ['Today’s focus: ' + promptFor(c, day).focus + '.', 'Write down what this skill means to you before you start.'], look: ['One clear decision', 'One deliberate contrast', 'One thing you will not do'], try: ['Make the focus skill the most visible thing in the piece.'] };
   };
   const streak = () => {
@@ -80,7 +92,7 @@
   const filterState = { today: 'all', challenges: 'all' };
   const renderFilters = (box, which, keys) => {
     box.innerHTML = '';
-    [['all', 'All']].concat(keys.map((k) => [k, PRACTICES[k].name])).forEach(([k, n]) => {
+    [['all', 'All']].concat(keys.map((k) => [k, kindOf(k).name])).forEach(([k, n]) => {
       const b = el('button', 'chip' + (filterState[which] === k ? ' on' : ''), n); b.type = 'button';
       if (k !== 'all') b.style.setProperty('--c', colorOf(k));
       b.onclick = () => { filterState[which] = k; which === 'today' ? renderToday() : renderChallenges(); };
@@ -99,9 +111,9 @@
     live.slice().reverse().filter((c) => f === 'all' || c.practice === f).forEach((c) => {
       const day = currentDay(c); const done = day - 1;
       const card = el('button', 'card pcard'); card.type = 'button'; card.style.setProperty('--c', colorOf(c.practice));
-      const band = el('div', 'band'); band.append(el('span', '', PRACTICES[c.practice].name), el('span', '', 'Day ' + day + '/' + c.days));
+      const band = el('div', 'band'); band.append(el('span', '', promptFor(c, day).skill), el('span', '', 'Day ' + day + '/' + c.days));
       const running = state.sprint && state.sprint.challengeId === c.id;
-      const body = el('div', 'cbody'); body.append(el('b', 'ctitle', nameOf(c)), el('p', 'cfocus', c.focus));
+      const body = el('div', 'cbody'); body.append(el('b', 'ctitle', nameOf(c)), el('p', 'cfocus', 'Today: ' + promptFor(c, day).skill + (c.plan === 'one' ? '' : ' · mixed')));
       const foot = el('div', 'cfoot'); foot.append(segs(c, done));
       if (running) card.classList.add('running');
       card.append(band, body, foot); card.onclick = () => openDay(c.id); box.append(card);
@@ -110,27 +122,34 @@
     add.onclick = () => go('challenges'); box.append(add);
   };
 
-  // ---- new challenge ----
-  let pick = null;
+  // ---- new challenge: scenario, then skill plan ----
+  let pick = null, plan = 'mixed', planSkill = null;
   const renderChallenges = () => {
     const box = $('typeCards'); box.innerHTML = '';
-    Object.entries(PRACTICES).forEach(([k, v]) => {
+    Object.entries(SCENARIOS).forEach(([k, v]) => {
       const card = el('button', 'tcard' + (pick === k ? ' on' : '')); card.type = 'button'; card.style.setProperty('--c', colorOf(k));
-      card.append(el('b', '', v.name), el('span', '', v.does));
-      card.onclick = () => { pick = k; renderChallenges(); $('newForm').hidden = false; $('nfFocus').value = $('nfFocus').value || ''; $('nfFocus').placeholder = 'e.g. ' + v.focus; setTimeout(() => $('newForm').scrollIntoView({ behavior: 'smooth', block: 'start' }), 30); };
+      card.append(el('b', '', v.name), el('span', '', v.line));
+      card.onclick = () => { const first = !pick; pick = k; renderChallenges(); if (k === 'own') $('nfOwn').focus(); if (first) setTimeout(() => $('newForm').scrollIntoView({ behavior: 'smooth', block: 'start' }), 30); };
       box.append(card);
     });
+    $('nfOwnRow').hidden = pick !== 'own'; $('nfOwn').required = pick === 'own';
     $('newForm').hidden = !pick;
     if (pick) $('newForm').style.setProperty('--c', colorOf(pick));
-    const chips = (id, list, input) => { const b = $(id); b.innerHTML = ''; list.forEach((t) => { const c = el('button', 'chip' + ($(input).value === t ? ' on' : ''), t); c.type = 'button'; c.onclick = () => { $(input).value = t; renderChallenges(); }; b.append(c); }); };
-    chips('focusChips', FOCI, 'nfFocus'); chips('topicChips', TOPICS, 'nfTopic');
+    const pb = $('planCards'); pb.innerHTML = '';
+    [['mixed', 'Mixed', 'A different fundamental each day.'], ['one', 'One focus', 'Every day, the same skill.']].forEach(([k, n, d]) => {
+      const c = el('button', 'tcard small' + (plan === k ? ' on' : '')); c.type = 'button'; c.append(el('b', '', n), el('span', '', d));
+      c.onclick = () => { plan = k; if (k === 'one' && !planSkill) planSkill = 'type'; renderChallenges(); }; pb.append(c);
+    });
+    const sb = $('skillChips'); sb.innerHTML = ''; sb.hidden = false;
+    SKILL_ORDER.forEach((k) => { const c = el('button', 'chip' + (plan === 'one' && planSkill === k ? ' on' : ''), SKILLS[k].name); c.type = 'button'; c.onclick = () => { plan = 'one'; planSkill = k; renderChallenges(); }; sb.append(c); });
+    sb.classList.toggle('dim', plan !== 'one');
   };
   $('newForm').querySelectorAll('.seg').forEach((sg) => sg.addEventListener('click', (e) => { if (e.target.tagName !== 'BUTTON') return; sg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === e.target)); }));
   $('newForm').addEventListener('submit', (e) => {
     e.preventDefault(); if (!pick) return;
     const f = $('newForm'); const seg = (n) => Number(f.querySelector(`.seg[data-name=${n}] .on`).value);
-    const c = makeChallenge(pick, seg('days'), seg('sprint'), $('nfFocus').value.trim() || PRACTICES[pick].focus, $('nfTopic').value.trim());
-    state.challenges.push(c); save(); pick = null; f.reset(); openDay(c.id);
+    const c = makeChallenge(pick, pick === 'own' ? $('nfOwn').value.trim() : '', plan, plan === 'one' ? planSkill : null, seg('days'), seg('sprint'));
+    state.challenges.push(c); save(); pick = null; plan = 'mixed'; planSkill = null; $('nfOwn').value = ''; openDay(c.id);
   });
 
   // ---- day view ----
@@ -160,7 +179,7 @@
     if (!day) { ['brief', 'lesson', 'sprint', 'submit'].forEach((k) => { $('s-' + k).hidden = true; }); $('dayMeta').textContent = nameOf(c); return; }
     const p = promptFor(c, day);
     $('dayMeta').textContent = 'Day ' + day + ' of ' + c.days;
-    $('pFocus').textContent = PRACTICES[c.practice].name + ' · ' + p.focus;
+    $('pFocus').textContent = 'Day ' + day + ' · ' + p.skill + ' — for ' + p.context;
     $('pTitle').textContent = p.title; $('pBrief').textContent = p.brief;
     $('pConstraint').textContent = p.constraint;
     setStep(step);
@@ -344,7 +363,7 @@
     e.preventDefault();
     if (!upload) { $('saveMsg').textContent = 'Add your exported piece first.'; drop.classList.add('nudge'); setTimeout(() => drop.classList.remove('nudge'), 600); return; }
     const c = openC(); const day = currentDay(c); const fd = new FormData(e.target);
-    const piece = { id: uid(), challengeId: c.id, challengeName: nameOf(c), practice: c.practice, day, prompt: promptFor(c, day), blob: upload, mime: upload.type, reflection: { tried: fd.get('tried'), worked: '', change: fd.get('change') }, critique: null, date: dateKey(), createdAt: Date.now(), demo: false };
+    const piece = { id: uid(), challengeId: c.id, challengeName: nameOf(c), practice: c.scenario, day, prompt: promptFor(c, day), blob: upload, mime: upload.type, reflection: { tried: fd.get('tried'), worked: '', change: fd.get('change') }, critique: null, date: dateKey(), createdAt: Date.now(), demo: false };
     await DB.put('pieces', piece); await loadPieces();
     if (state.sprint && state.sprint.challengeId === c.id) stopSprint();
     upload = null; e.target.reset(); drop.querySelectorAll('img').forEach((n) => n.remove()); drop.classList.remove('has'); $('dropHint').hidden = false;

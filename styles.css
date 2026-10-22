@@ -283,3 +283,10 @@ textarea{font:inherit;font-size:18px}
 .fb-ab{max-height:calc(100vh - 80px);max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.5)}
 .fb-ab .before img,.fb-ab .before canvas{display:block;max-height:calc(100vh - 80px);max-width:100%;width:auto;height:auto}
 .fb-ab .after img,.fb-ab .after canvas{display:block;object-fit:fill}
+/* v4 new-challenge steps */
+.nf-step{font-size:clamp(28px,3vw,40px);font-weight:700;letter-spacing:-.04em;margin:10px 0 -10px}
+.newf .nf-step{margin:0 0 -16px}
+.types.two{grid-template-columns:repeat(2,minmax(0,1fr));margin:0}
+.tcard.small{min-height:130px}.tcard.small::before{display:none}
+#skillChips{margin-top:-12px}#skillChips.dim .chip{opacity:.45}
+.tcard{padding-top:74px}.tcard.small{padding-top:22px}.kicker{font-size:22px}
