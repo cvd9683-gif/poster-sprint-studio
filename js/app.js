@@ -399,12 +399,12 @@
     const img = new Image(); img.onload = () => {
       const W = 1200, pad = 70, iw = W - pad * 2, ih = Math.round(iw * img.height / img.width), maxH = 1700;
       const h = Math.min(ih, maxH), w = h < ih ? Math.round(h * img.width / img.height) : iw;
-      const c = document.createElement('canvas'); c.width = W; c.height = h + pad * 2 + 70; const g = c.getContext('2d');
+      const c = document.createElement('canvas'); c.width = W; c.height = h + pad * 2 + 110; const g = c.getContext('2d');
       g.fillStyle = '#f4f1ea'; g.fillRect(0, 0, c.width, c.height);
       g.drawImage(img, (W - w) / 2, pad, w, h); g.strokeStyle = 'rgba(0,0,0,.15)'; g.strokeRect((W - w) / 2, pad, w, h);
-      g.font = '600 26px Helvetica, Arial, sans-serif'; g.fillStyle = '#555'; g.fillText(String(piece || '').toUpperCase(), pad, c.height - 44);
-      g.save(); g.translate(W - pad - 10, c.height - 52); g.rotate(-0.06); g.font = '900 34px Helvetica, Arial, sans-serif';
-      const tw = g.measureText(tag).width + 28; g.strokeStyle = '#e5322d'; g.lineWidth = 4; g.strokeRect(-tw, -30, tw, 46); g.fillStyle = '#e5322d'; g.fillText(tag, -tw + 14, 5); g.restore();
+      g.font = '600 26px Helvetica, Arial, sans-serif'; g.fillStyle = '#555'; g.fillText(String(piece || '').toUpperCase(), pad, c.height - 60);
+      g.save(); g.translate(W - pad - 10, c.height - 50); g.rotate(-0.06); g.font = '900 64px Helvetica, Arial, sans-serif';
+      const tw = g.measureText(tag).width + 28; g.strokeStyle = '#e5322d'; g.lineWidth = 4; g.strokeRect(-tw, -56, tw, 80); g.fillStyle = '#e5322d'; g.fillText(tag, -tw + 14, 6); g.restore();
       c.toBlob((b) => b ? res(b) : rej(new Error('sheet')), 'image/png');
     }; img.onerror = rej; img.src = URL.createObjectURL(blob);
   });
@@ -428,7 +428,7 @@
   };
   const renderWall = async () => {
     const list = visible();
-    $('stats').textContent = list.length + (list.length === 1 ? ' poster' : ' pieces');
+    $('stats').textContent = list.length + (list.length === 1 ? ' piece' : ' pieces');
     if (await has3d()) Wall3D.render($('wall3d'), list, srcOf, (id) => openPiece(id), pasting);
     else Wall.render($('wall'), list, mediaFor, (id) => openPiece(id));
   };
