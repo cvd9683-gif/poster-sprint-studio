@@ -1,61 +1,31 @@
-/* Optional AI critique. Uses the user's own key from Settings; nothing is hardcoded. */
+/* AI critique via our own serverless function (/api/critique). No user keys. */
 (() => {
-  const blobToB64 = (blob) => new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = () => res(String(r.result).split(',')[1]);
-    r.onerror = rej;
-    r.readAsDataURL(blob);
+  // Downscale to a JPEG data URL so uploads stay small and fast.
+  const toSmallDataURL = (blob, max = 1280) => new Promise((res, rej) => {
+    const img = new Image(); const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', 0.86));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('Could not read the image.')); };
+    img.src = url;
   });
 
-  const instructions = (p) =>
-    `You are a concise, encouraging design critic for a student's daily practice piece.\n` +
-    `Prompt: "${p.title}". Brief: ${p.brief}\nConstraint: ${p.constraint}\nFocus skill: ${p.focus}\n` +
-    `Judge ONLY the focus skill. Reply with strict JSON and nothing else: ` +
-    `{"works":"one sentence on one thing that works","push":"one sentence on one thing to push next time","score":1-5 integer for the focus skill only}`;
+  class NotConfigured extends Error {}
+  window.CritiqueNotConfigured = NotConfigured;
 
-  const parse = (text) => {
-    const m = String(text).match(/\{[\s\S]*\}/);
-    if (!m) throw new Error('The model did not return JSON.');
-    const j = JSON.parse(m[0]);
-    const score = Math.max(1, Math.min(5, Math.round(Number(j.score) || 0)));
-    return { works: String(j.works || ''), push: String(j.push || ''), score };
-  };
-
-  window.critique = async ({ blob, mime, prompt, settings }) => {
-    if (!settings.key) throw new Error('No API key. Add one in Settings to get AI feedback.');
-    if (!blob || !/^image\/(png|jpeg|gif|webp)$/.test(mime)) throw new Error('AI feedback works on PNG, JPG, GIF, or WebP images. For video, upload a still frame.');
-    const data = await blobToB64(blob);
-    const text = instructions(prompt);
-    if (settings.provider === 'anthropic') {
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': settings.key,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
-        body: JSON.stringify({
-          model: settings.model || 'claude-sonnet-4-5',
-          max_tokens: 400,
-          messages: [{ role: 'user', content: [
-            { type: 'image', source: { type: 'base64', media_type: mime, data } },
-            { type: 'text', text }
-          ] }]
-        })
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error((j.error && j.error.message) || 'Request failed (' + r.status + ')');
-      return parse(j.content.map((c) => c.text || '').join(''));
-    }
-    const model = settings.model || 'gemini-2.5-flash';
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': settings.key },
-      body: JSON.stringify({ contents: [{ parts: [{ inline_data: { mime_type: mime, data } }, { text }] }] })
-    });
-    const j = await r.json();
-    if (!r.ok) throw new Error((j.error && j.error.message) || 'Request failed (' + r.status + ')');
-    return parse(((j.candidates || [])[0]?.content?.parts || []).map((p) => p.text || '').join(''));
+  window.critique = async ({ blob, prompt, practice, reflection }) => {
+    if (location.protocol === 'file:') throw new NotConfigured('The AI critic runs on the hosted site.');
+    const image = await toSmallDataURL(blob);
+    let r;
+    try {
+      r = await fetch('/api/critique', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ image, prompt, practice, reflection }) });
+    } catch (e) { throw new NotConfigured('The AI critic is offline right now.'); }
+    let j = {}; try { j = await r.json(); } catch (e) {}
+    if (r.status === 503 || r.status === 404 || j.error === 'not_configured') throw new NotConfigured('The AI critic isn’t switched on yet.');
+    if (!r.ok) throw new Error(j.message || 'Feedback failed (' + r.status + ').');
+    return { works: j.works, push: j.push, constraint: j.constraint, reply: j.reply, score: j.score, model: j.model };
   };
 })();
