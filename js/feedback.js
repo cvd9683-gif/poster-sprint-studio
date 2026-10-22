@@ -40,7 +40,7 @@
     const z = st.root.querySelector('.fb-zoom'); const f = st.root.querySelector('.fb-frame');
     const W = f.clientWidth, H = f.clientHeight;
     if (!box) { z.style.transform = 'translate(0,0) scale(1)'; return; }
-    const k = Math.max(1, Math.min(3.2, .6 / Math.max(box.w, box.h)));
+    const k = Math.max(1.35, Math.min(3.2, .95 / box.w, .7 / box.h));
     const cx = (box.x + box.w / 2) * W, cy = (box.y + box.h / 2) * H;
     let tx = W / 2 - cx * k, ty = H / 2 - cy * k;
     tx = Math.min(0, Math.max(W - W * k, tx)); ty = Math.min(0, Math.max(H - H * k, ty));
@@ -49,7 +49,7 @@
   const mark = (box, kind, n) => {
     const m = st.root.querySelector('.fb-mark');
     if (!box) { m.hidden = true; return; }
-    m.hidden = false; m.className = 'fb-mark ' + kind; m.dataset.n = n;
+    m.hidden = false; m.className = 'fb-mark on ' + kind; m.dataset.n = n;
     Object.assign(m.style, { left: box.x * 100 + '%', top: box.y * 100 + '%', width: box.w * 100 + '%', height: box.h * 100 + '%' });
     m.style.animation = 'none'; void m.offsetWidth; m.style.animation = '';
   };
