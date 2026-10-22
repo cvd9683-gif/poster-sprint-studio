@@ -30,7 +30,7 @@
       }
       if (!p) { col.classList.add('empty'); continue; }
       col.dataset.id = p.id;
-      const copies = 2; // wheatpaste runs repeat the same poster
+      const copies = 1; // one submission = one poster
       for (let c = 0; c < copies; c++) {
         const wp = el('button', 'wp'); wp.type = 'button'; wp.title = p.prompt.title;
         wp.style.setProperty('--r', (r() * 2.4 - 1.2).toFixed(2) + 'deg');
@@ -42,7 +42,7 @@
         wp.onclick = () => onOpen(p.id);
         col.append(wp);
       }
-      const cap = el('p', 'wcap'); cap.textContent = 'Day ' + String(p.day).padStart(2, '0') + ' · ' + p.prompt.focus; col.append(cap);
+      
     }
   };
 

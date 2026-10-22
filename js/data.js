@@ -67,34 +67,29 @@
 
   const simpleLesson = (focus, what, look, tryLines) => ({ focus, format: 'visual', video: '', article: [], what, look, examples: [], try: tryLines, simple: true });
 
+  // Practice types. Topics are chosen by the user; briefs are formats that take any topic.
   const PRACTICES = {
-    poster: { name: 'Poster', unit: 'poster', color: 'red', program: 'Ten Days of Culture Posters', blurb: 'The original Poster Sprint: ten briefs about food, sound, language, and home, each with a full lesson.', prompts: POSTER_PROMPTS, lessons: () => window.LESSONS },
-    type: { name: 'Typography', unit: 'type study', color: 'violet', program: 'Type Without Pictures', blurb: 'Five studies where letters do all the work: mood, signage, lyrics, and scale.', prompts: [
-      { title: 'One Word, Five Moods', brief: 'Set the word “NOW” five times so each version carries a different emotion: urgent, tender, bored, euphoric, suspicious.', focus: 'Type as image', constraint: 'One typeface only. Change size, weight, spacing, and placement.' },
-      { title: 'Corner Store Sign', brief: 'Design a typographic sign for a neighborhood store that has been open for 40 years and just got new owners.', focus: 'Hierarchy', constraint: 'Maximum two typefaces. No images.' },
-      { title: 'Lyric Sheet', brief: 'Set four lines of a song you love so the type moves the way the music does.', focus: 'Rhythm', constraint: 'Black on white only.' },
-      { title: 'Specimen of the Street', brief: 'Make a type specimen for a fictional font inspired by your block.', focus: 'Grid and alignment', constraint: 'Show the full alphabet plus one sentence.' },
-      { title: 'Whisper / Shout', brief: 'Put a whispered sentence and a shouted sentence on the same page.', focus: 'Scale and negative space', constraint: 'The whisper must be read first.' }
-    ] },
-    motion: { name: 'Motion', unit: 'loop', color: 'pink', program: 'Tiny Loops', blurb: 'Short loops about timing, easing, and anticipation. Export a GIF or a still frame.', prompts: [
-      { title: 'Doorbell', brief: 'Animate a 3-second loop of the moment before someone opens the door.', focus: 'Timing', constraint: 'Only squares. No more than 3 shapes.' },
-      { title: 'Title Card', brief: 'Make an animated title card for a fictional late-night radio show.', focus: 'Easing', constraint: 'Type must enter and exit. 5 seconds max.' },
-      { title: 'Heartbeat UI', brief: 'Design a loading animation that feels alive instead of mechanical.', focus: 'Rhythm', constraint: 'One color. Loop seamlessly.' },
-      { title: 'Transit', brief: 'Show the feeling of a crowded train arriving using only lines.', focus: 'Anticipation', constraint: 'Black and white. 4 seconds.' }
-    ] },
-    color: { name: 'Color', unit: 'color study', color: 'mustard', program: 'Palettes From Memory', blurb: 'Build palettes from places and hours: kitchens, 3 a.m., seasons, festivals.', prompts: [
-      { title: 'Grandmother’s Kitchen', brief: 'Build a palette and a simple composition from the memory of a kitchen.', focus: 'Color', constraint: 'Five colors, one dominant.' },
-      { title: '3 a.m.', brief: 'Make a flat composition that feels like the city at 3 a.m.', focus: 'Value contrast', constraint: 'No pure black or pure white.' },
-      { title: 'Same Shape, Two Seasons', brief: 'One shape layout, recolored as summer and as winter.', focus: 'Temperature', constraint: 'Layout must stay identical.' },
-      { title: 'Festival Flag', brief: 'Design a flag for a festival that does not exist yet.', focus: 'Color', constraint: 'Maximum 3 colors.' }
-    ] },
-    layout: { name: 'Layout', unit: 'spread', color: 'green', program: 'Grids for Real Life', blurb: 'Zines, menus, programs, and interviews. Make the grid carry the reading.', prompts: [
-      { title: 'Zine Spread', brief: 'Design a two-page spread for a zine about a place you used to live.', focus: 'Grid and alignment', constraint: 'Use a 6-column grid.' },
-      { title: 'Menu Redesign', brief: 'Redesign the menu of your favorite cheap restaurant.', focus: 'Hierarchy', constraint: 'Everything must fit on one page.' },
-      { title: 'Event Program', brief: 'Lay out a one-page program for a community talent show.', focus: 'Rhythm', constraint: 'One image, many names.' },
-      { title: 'Interview Page', brief: 'Lay out a magazine interview with a musician you admire.', focus: 'Composition', constraint: 'The pull quote must dominate.' }
-    ] }
+    poster: { name: 'Poster', color: 'red', does: 'Hierarchy, image and type in one hit.', focus: 'Hierarchy',
+      briefs: ['A poster for an event about {t}.', 'A gig poster where {t} is the headliner.', 'A protest-style poster about {t}. Readable from across the street.', 'An exhibition poster on {t}.', 'A poster about {t} using only one image.'],
+      constraints: ['One dominant element.', 'Type does all the work. No photos.', 'Three colors max.', 'No centered layout.', 'Extreme scale contrast.'] },
+    type: { name: 'Typography', color: 'violet', does: 'Letters as the whole picture.', focus: 'Typography',
+      briefs: ['Set one word about {t} five ways.', 'A type-only cover about {t}.', 'A sign for something about {t}.', 'Set a sentence about {t} so it sounds the way it feels.', 'A specimen inspired by {t}.'],
+      constraints: ['One typeface.', 'Two typefaces max. No images.', 'Black and white only.', 'Use a strict grid.', 'The quietest line reads first.'] },
+    motion: { name: 'Motion', color: 'pink', does: 'Timing, easing, and the pause before.', focus: 'Timing',
+      briefs: ['A 3-second loop about {t}.', 'An animated title card for {t}.', 'A loader that feels like {t}.', 'Show {t} using only lines.'],
+      constraints: ['Squares only.', 'Type enters and exits.', 'One color. Seamless loop.', '4 seconds max.'] },
+    layout: { name: 'Layout', color: 'green', does: 'Grids that carry the reading.', focus: 'Grid and alignment',
+      briefs: ['A zine spread about {t}.', 'A one-page menu for {t}.', 'A program for an evening of {t}.', 'An interview page about {t}.'],
+      constraints: ['6-column grid.', 'Fits on one page.', 'One image, lots of names.', 'The pull quote dominates.'] },
+    color: { name: 'Color', color: 'mustard', does: 'Palettes, value, and mood.', focus: 'Color',
+      briefs: ['A palette and composition from {t}.', 'A flat piece that feels like {t} at 3 a.m.', 'One layout, recolored twice for {t}.', 'A flag for {t}.'],
+      constraints: ['Five colors, one dominant.', 'No pure black or white.', 'Layout stays identical.', 'Three colors max.'] },
+    own: { name: 'Make your own', color: 'ink', does: 'Your format, your rules.', focus: 'Visual design',
+      briefs: ['Make something about {t}.', 'Push yesterday’s piece about {t} further.', 'Make it about {t} again, from scratch.'],
+      constraints: ['Set your own.', 'Change one thing on purpose.', 'Half the time you think you need.'] }
   };
+  const TOPICS = ['Culture', 'Music', 'Protest', 'Food', 'Your block', 'Memory', 'Type only'];
+  const FOCI = ['Typography', 'Hierarchy', 'Color', 'Composition', 'Visual design'];
 
   // Short lessons for focus skills not covered by the poster program.
   const EXTRA_LESSONS = {
@@ -106,5 +101,5 @@
     'Temperature': simpleLesson('Temperature', ['Colors feel warm or cool, and that shifts mood fast.', 'Temperature contrast can replace value contrast.'], ['Warm vs. cool', 'Neutral anchors', 'Accent temperature'], ['Pick one temperature to dominate.', 'Use the opposite only as an accent.'])
   };
 
-  window.STUDIO_DATA = { PRACTICES, EXTRA_LESSONS };
+  window.STUDIO_DATA = { PRACTICES, EXTRA_LESSONS, TOPICS, FOCI };
 })();

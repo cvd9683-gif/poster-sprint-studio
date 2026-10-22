@@ -26,6 +26,6 @@
     let j = {}; try { j = await r.json(); } catch (e) {}
     if (r.status === 503 || r.status === 404 || j.error === 'not_configured') throw new NotConfigured('The AI critic isn’t switched on yet.');
     if (!r.ok) throw new Error(j.message || 'Feedback failed (' + r.status + ').');
-    return { works: j.works, push: j.push, constraint: j.constraint, reply: j.reply, score: j.score, model: j.model };
+    return { works: j.works, push: j.push, constraint: j.constraint, reply: j.reply, score: j.score, model: j.model, notes: j.notes || [], redesign: j.redesign || null };
   };
 })();

@@ -10,91 +10,73 @@
 <body>
 <div class="app" id="app">
   <aside class="side">
-    <div class="brand"><span class="brand-chip"></span><div><p class="label">Poster Sprint</p><p class="label mid">Studio</p></div></div>
+    <div class="brand"><span class="brand-chip"></span><b>Poster<br>Sprint</b></div>
     <nav class="nav">
       <button data-view="today" class="navb">Today</button>
-      <button data-view="challenges" class="navb">Challenges</button>
-      <button data-view="wall" class="navb">The Wall</button>
+      <button data-view="challenges" class="navb">New</button>
+      <button data-view="wall" class="navb">Wall</button>
     </nav>
     <div class="side-streak" id="sideStreak"></div>
     <div class="side-run" id="sideRun" hidden></div>
-    <div class="side-foot">
-      <label class="check"><input type="checkbox" id="optChime"> Stage chimes</label>
-      <label class="check"><input type="checkbox" id="optDemo"> Demo posters</label>
-      <p class="label mid" id="devTag" hidden></p>
-    </div>
   </aside>
 
   <main class="main" id="main">
-    <!-- TODAY -->
     <section class="view" id="v-today">
-      <header class="hero">
-        <p class="label mid" id="todayDate"></p>
-        <h1 class="h-xl">Today</h1>
-        <p class="lede" id="todayLede"></p>
-      </header>
+      <h1 class="h-xl">Today</h1>
       <div class="filters" id="todayFilters"></div>
       <div class="cards" id="todayCards"></div>
     </section>
 
-    <!-- CHALLENGES -->
     <section class="view" id="v-challenges" hidden>
-      <header class="hero">
-        <p class="label mid">Pick a practice</p>
-        <h1 class="h-xl">Challenges</h1>
-        <p class="lede">Each challenge is a run of short daily sprints. Do the brief and lesson here, make the work in Figma, then paste it on the wall.</p>
-      </header>
-      <div class="filters" id="chFilters"></div>
-      <div class="cards" id="chCards"></div>
-      <h2 class="h-sec">Your challenges</h2>
-      <ul class="clist" id="chList"></ul>
+      <h1 class="h-xl">What are you practicing?</h1>
+      <div class="types" id="typeCards"></div>
+      <form class="newf" id="newForm" hidden autocomplete="off">
+        <div class="nf-row"><h2>Days</h2><div class="seg" data-name="days"><button type="button" value="3">3</button><button type="button" value="5" class="on">5</button><button type="button" value="10">10</button><button type="button" value="30">30</button></div></div>
+        <div class="nf-row"><h2>Sprint</h2><div class="seg" data-name="sprint"><button type="button" value="10">10 min</button><button type="button" value="20" class="on">20 min</button><button type="button" value="45">45 min</button></div></div>
+        <div class="nf-row"><h2>Focus</h2><div><input name="focus" id="nfFocus" placeholder="What skill are you working on?" required><div class="chips" id="focusChips"></div></div></div>
+        <div class="nf-row"><h2>Topic</h2><div><input name="topic" id="nfTopic" placeholder="Anything. Or pick one."><div class="chips" id="topicChips"></div></div></div>
+        <button class="btn hot big" type="submit">Start</button>
+      </form>
     </section>
 
-    <!-- DAY -->
     <section class="view" id="v-day" hidden>
       <header class="dayhead">
-        <button class="crumb" data-go="today">← Today</button>
-        <p class="label" id="dayMeta"></p>
+        <div class="row between"><button class="crumb" data-go="today">← Today</button><span class="daymeta" id="dayMeta"></span></div>
         <div class="steps" id="steps">
-          <button class="step" data-step="brief"><i>01</i>Brief</button>
-          <button class="step" data-step="lesson"><i>02</i>Lesson</button>
-          <button class="step" data-step="sprint"><i>03</i>Sprint</button>
-          <button class="step" data-step="submit"><i>04</i>Paste up</button>
+          <button class="step" data-step="brief">Brief</button>
+          <button class="step" data-step="lesson">Lesson</button>
+          <button class="step" data-step="sprint">Sprint</button>
+          <button class="step" data-step="submit">Paste up</button>
         </div>
       </header>
 
       <div class="pane" id="s-brief">
-        <p class="label tag-color" id="pFocus"></p>
+        <p class="kicker" id="pFocus"></p>
         <h1 class="p-title" id="pTitle"></h1>
         <p class="p-brief" id="pBrief"></p>
-        <dl class="p-dl">
-          <div><dt class="label">Constraint</dt><dd id="pConstraint"></dd></div>
-          <div><dt class="label">Focus</dt><dd id="pFocus2"></dd></div>
-          <div><dt class="label">Sprint</dt><dd id="pLen"></dd></div>
-        </dl>
-        <div class="row"><button class="btn" data-step-go="lesson">Read the lesson →</button><button class="btn quiet" data-step-go="sprint">Skip to sprint</button></div>
+        <p class="p-con" id="pConstraint"></p>
+        <div class="row"><button class="btn" data-step-go="lesson">Lesson</button><button class="btn hot" data-step-go="sprint">Sprint</button></div>
       </div>
 
       <div class="pane" id="s-lesson" hidden>
         <div class="l-screen" id="lScreen"></div>
-        <div class="l-nav"><button class="btn quiet" id="prevBtn">Prev</button><span class="label" id="lCount"></span><button class="btn quiet" id="nextBtn">Next</button></div>
+        <div class="l-nav"><button class="btn quiet" id="prevBtn">Prev</button><span id="lCount"></span><button class="btn quiet" id="nextBtn">Next</button></div>
       </div>
 
       <div class="pane" id="s-sprint" hidden>
         <div class="sprint-grid">
           <div>
-            <p class="label mid" id="spLabel">Ready when you are</p>
             <div class="sp-clock" id="spClock">20:00</div>
             <p class="sp-stage" id="spStage"></p>
             <div class="sp-note" id="spNote"></div>
             <div class="row" id="spCtrl">
-              <button class="btn hot" id="spStart">Start sprint</button>
-              <button class="btn quiet" id="spPop" hidden>Pop out widget</button>
+              <button class="btn hot" id="spStart">Start</button>
+              <button class="btn quiet" id="spPop" hidden>Pop out</button>
               <button class="btn quiet" id="spPause" hidden>Pause</button>
-              <button class="btn quiet" id="spNext" hidden>Next stage</button>
+              <button class="btn quiet" id="spNext" hidden>Next</button>
               <button class="btn quiet" id="spReset" hidden>Reset</button>
             </div>
-            <p class="small mid sp-hint" id="spHint">The coach pops out as a small floating widget that stays on top, so you can work in Figma, Pinterest, or wherever you make things.</p>
+            <div class="sp-hint" id="spHint"></div>
           </div>
           <ol class="sp-stages" id="spStages"></ol>
         </div>
@@ -102,45 +84,34 @@
 
       <div class="pane" id="s-submit" hidden>
         <div class="sub-grid">
-          <div>
-            <p class="label">Your piece</p>
-            <div class="drop" id="drop" tabindex="0">
-              <input type="file" id="pieceFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
-              <div class="drop-hint" id="dropHint"><b>Drop your export here</b><span>PNG or JPG from Figma · or paste (⌘V) · or <u>browse</u></span></div>
-            </div>
+          <div class="drop" id="drop" tabindex="0">
+            <input type="file" id="pieceFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+            <div class="drop-hint" id="dropHint"><b>Drop your poster</b><span>or click, or paste</span></div>
           </div>
           <form id="reflectForm" class="reflect">
-            <p class="label">Reflect first</p>
-            <p class="small mid">Your read comes before the critic's. Then it goes up on the wall.</p>
-            <label>What did I try?<textarea name="tried" rows="2" required></textarea></label>
-            <label>What worked?<textarea name="worked" rows="2" required></textarea></label>
-            <label>What would I change?<textarea name="change" rows="2" required></textarea></label>
-            <button class="btn hot" type="submit">Paste it on the wall</button>
-            <p class="small msg" id="saveMsg"></p>
+            <label>What did you try?<textarea name="tried" rows="3" required></textarea></label>
+            <label>What would you change?<textarea name="change" rows="3" required></textarea></label>
+            <button class="btn hot big" type="submit">Paste it up</button>
+            <p class="msg" id="saveMsg"></p>
           </form>
         </div>
       </div>
 
       <div class="pane" id="s-done" hidden>
-        <h1 class="p-title">Challenge complete.</h1>
-        <p class="p-brief">Every day is on the wall. Start a new challenge to keep going.</p>
-        <div class="row"><button class="btn" data-go="challenges">New challenge</button><button class="btn quiet" data-go="wall">See the wall</button></div>
+        <h1 class="p-title">Done.</h1>
+        <div class="row"><button class="btn hot" data-go="challenges">New challenge</button><button class="btn quiet" data-go="wall">The wall</button></div>
       </div>
     </section>
 
-    <!-- WALL -->
     <section class="view wallview" id="v-wall" hidden>
-      <header class="wallhead">
-        <div><p class="label mid">Archive</p><h1 class="h-xl">The Wall</h1></div>
-        <div class="stats" id="stats"></div>
-        <div class="row"><button class="btn quiet" id="exportBtn">Export JSON</button><label class="btn quiet"><input type="file" id="importFile" accept="application/json" hidden>Import JSON</label></div>
-      </header>
-      <div class="wall-scroll" id="wallScroll"><div class="wall" id="wall"></div></div>
-      <p class="small mid wall-tip">Scroll sideways to walk the block. Click a poster to read it.</p>
+      <header class="wallhead"><h1 class="h-xl">The Wall</h1><p class="wallcount" id="stats"></p></header>
+      <div class="wall3d" id="wall3d"></div>
+      <div class="wall-scroll" id="wallScroll" hidden><div class="wall" id="wall"></div></div>
     </section>
   </main>
 </div>
 
+<div class="fb" id="fb" hidden></div>
 <div class="mini" id="mini" hidden></div>
 <div class="modal" id="modal" hidden><div class="m-box" id="mBox"></div></div>
 
@@ -151,6 +122,9 @@
 <script src="js/demo.js"></script>
 <script src="js/wall.js"></script>
 <script src="js/widget.js"></script>
+<script src="js/feedback.js"></script>
 <script src="js/app.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"}}</script>
+<script type="module" src="js/wall3d.js"></script>
 </body>
 </html>
