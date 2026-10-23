@@ -98,7 +98,8 @@
   const leave = () => {
     if (S && S.phase !== 'done' && S.phase !== 'judge' && !confirm('Leave the challenge?')) return;
     if (S) { try { S.conn && S.conn.close(); S.peer && S.peer.destroy(); } catch (e) {} if (S.local) S.local.getTracks().forEach((t) => t.stop()); closePip(); clearInterval(S.timer); S.ui.root.remove(); }
-    S = null; history.replaceState(null, '', location.pathname);
+    const room = S && S.room; S = null; if (!room) history.replaceState(null, '', location.pathname);
+    P0 = null; if (room) setTimeout(() => P1 && presence(P1.cid, P1.day, P1.cb, true), 300);
   };
 
   const send = (m) => { if (S && S.conn && S.conn.open) S.conn.send(m); };
@@ -131,18 +132,19 @@
     const b = S.ui.body; b.innerHTML = '';
     const P = S.prompt;
     if (S.phase === 'lobby') {
-      b.append(el('h1', 'd-h', S.host ? 'Send this link' : (P ? P.title : 'Joining…')));
-      if (S.host) {
+      b.append(el('h1', 'd-h', S.host && !S.room ? 'Send this link' : (P ? P.title : 'Joining…')));
+      if (S.host && !S.room) {
         const row = el('div', 'd-row'); const inp = el('input', 'd-link'); inp.readOnly = true; inp.value = S.link; inp.onclick = () => inp.select();
         const cp = el('button', 'btn', 'Copy'); cp.onclick = async () => { try { await navigator.clipboard.writeText(S.link); } catch (e) { inp.select(); document.execCommand('copy'); } cp.textContent = 'Copied'; };
         row.append(inp, cp); b.append(row);
       } else if (P) b.append(el('p', 'd-p', P.brief));
+      const ready = S.connected && (!S.room || S.themIn);
       const cams = el('div', 'd-cams'); cams.append(S.tMe, S.tThem); b.append(cams);
       const row = el('div', 'd-row'); const nm = el('input', 'd-name'); nm.placeholder = 'Your name'; nm.value = S.name || ''; nm.maxLength = 24;
       nm.oninput = () => { S.name = nm.value.trim(); localStorage.setItem('showup.name', S.name); setTile(S.tMe, null, S.camOn, S.name || 'You'); send({ t: 'name', name: S.name }); };
       row.append(nm);
-      if (S.host) { const go = el('button', 'btn hot', S.connected ? 'Start' : 'Waiting for friend'); go.disabled = !S.connected; go.id = 'duelStart'; go.onclick = () => hostStart(); row.append(go); }
-      else row.append(el('span', 'd-mid', S.connected ? 'Waiting for ' + (S.them || 'host') + ' to start' : 'Connecting…'));
+      if (S.host) { const go = el('button', 'btn hot', ready ? 'Start' : 'Waiting for ' + (S.them || 'friend')); go.disabled = !ready; go.id = 'duelStart'; go.onclick = () => hostStart(); row.append(go); }
+      else row.append(el('span', 'd-mid', ready ? 'Waiting for ' + (S.them || 'host') + ' to start' : S.room ? 'Waiting for ' + (S.them || 'friend') : 'Connecting…'));
       b.append(row);
       return;
     }
@@ -221,7 +223,7 @@
     const P = S.prompt;
     if (!S.myId) {
       const base = { prompt: P, format: S.format, name: 'vs ' + (S.them || 'Friend'), vs: S.them || 'Friend' };
-      S.myId = (await window.App.savePiece(Object.assign({}, base, { blob: S.mine, mine: true, challengeId: S.host ? S.challengeId : 'duel', day: S.host ? S.day : 1 }))).id;
+      S.myId = (await window.App.savePiece(Object.assign({}, base, { blob: S.mine, mine: true, challengeId: S.challengeId || 'duel', day: S.day || 1 }))).id;
       S.theirId = (await window.App.savePiece(Object.assign({}, base, { name: (S.them || 'Friend') + ' · duel', blob: S.theirs, mine: false, challengeId: 'duel-them' }))).id;
     }
     try {
@@ -233,8 +235,9 @@
 
   const onMsg = (m) => {
     if (!S || !m || !m.t) return;
+    if (m.t === 'hello' || m.t === 'room' || m.t === 'name') S.themIn = true;
     if (m.t === 'hello') { S.them = m.name || ''; setTile(S.tThem, null, m.cam, S.them || 'Friend'); send({ t: 'room', prompt: S.prompt, format: S.format, color: S.color, name: S.name, cam: S.camOn }); render(); }
-    if (m.t === 'room') { S.prompt = m.prompt; S.format = m.format; S.color = m.color; S.them = m.name || ''; setTile(S.tThem, null, m.cam, S.them || 'Host'); render(); }
+    if (m.t === 'room') { if (S.room) send({ t: 'name', name: S.name }); if (S.room && S.camOn != null) send({ t: 'cam', on: S.camOn }); if (!S.room || !S.prompt) S.prompt = m.prompt; S.format = m.format; S.color = m.color; S.them = m.name || ''; setTile(S.tThem, null, m.cam, S.them || 'Host'); render(); }
     if (m.t === 'name') { S.them = m.name; setTile(S.tThem, null, null, m.name || 'Friend'); S.tThem.classList.toggle('off', !S.themCam); if (S.phase === 'lobby') render(); }
     if (m.t === 'ping') send({ t: 'pong', a: m.a, h: Date.now() });
     if (m.t === 'pong') { const rtt = Date.now() - m.a; const off = m.h + rtt / 2 - Date.now(); if (rtt < (S.bestRtt || 1e9)) { S.bestRtt = rtt; S.offset = off; } }
@@ -246,17 +249,18 @@
   };
   const wire = (conn) => {
     S.conn = conn;
-    conn.on('open', () => {
+    const onOpen = () => {
       S.connected = true;
       if (!S.host) { send({ t: 'hello', name: S.name, cam: S.camOn }); for (let i = 0; i < 5; i++) setTimeout(() => send({ t: 'ping', a: Date.now() }), i * 400); }
       render();
-    });
-    conn.on('data', onMsg);
+    };
+    if (conn.open) onOpen(); else conn.on('open', onOpen);
+    if (!conn.__wired) conn.on('data', (m) => onMsg(m)); conn.__wired = true;
     conn.on('close', () => { if (S && S.phase !== 'judge' && S.phase !== 'done') { S.connected = false; if (S.phase === 'lobby') render(); else S.bLab && (S.bLab.textContent = 'Friend left'); } });
   };
   const onStream = (rs) => { S.remote = rs; const camOn = rs.getVideoTracks().length > 0 && S.themCam !== false; setTile(S.tThem, rs, camOn, null); };
 
-  const start = async (host, code, info) => {
+  const start = async (host, code, info, ex) => {
     if (S) leave();
     if (!window.Peer) { alert('Couldn’t load the connection library.'); return; }
     S = { host, code, phase: 'lobby', offset: 0, name: localStorage.getItem('showup.name') || '', ui: open(), tMe: tile('me'), tThem: tile('them') };
@@ -267,6 +271,7 @@
     setTile(S.tMe, S.local, S.camOn, S.name || 'You');
     const out = S.local && S.local.getVideoTracks().length ? S.local : (() => { const b = blankStream(); if (S.local) S.local.getAudioTracks().forEach((t) => b.addTrack(t)); return b; })();
     S.timer = setInterval(tick, 250);
+    if (ex) { S.room = true; S.peer = ex.peer; S.timer = S.timer; if (host) { S.link = ''; ex.onCall = (call) => { call.answer(out); call.on('stream', onStream); }; if (ex.pendingCall) { ex.onCall(ex.pendingCall); ex.pendingCall = null; } } if (ex.conn) wire(ex.conn); ex.onConn = (c) => wire(c); if (!host && ex.conn) { const call = ex.peer.call(ex.target, out); call && call.on('stream', onStream); } if (host && ex.conn && ex.conn.open) send({ t: 'room', prompt: S.prompt, format: S.format, color: S.color, name: S.name, cam: S.camOn }); render(); setTimeout(() => send({ t: 'cam', on: S.camOn }), 1500); return; }
     const peer = host ? new Peer(PREFIX + code) : new Peer(); S.peer = peer;
     peer.on('error', (e) => { if (!S) return; if (e.type === 'unavailable-id' && host) { leave(); return start(true, Math.random().toString(36).slice(2, 7), info); } if (!S.connected) { S.ui.body.innerHTML = ''; S.ui.body.append(el('h1', 'd-h', e.type === 'peer-unavailable' ? 'This link has expired.' : 'Couldn’t connect.'), el('p', 'd-mid', 'Ask your friend for a new link.')); } });
     if (host) {
@@ -282,8 +287,50 @@
     setTimeout(() => send({ t: 'cam', on: S.camOn }), 1500);
   };
 
+  // ---- shared challenges: presence room per (challenge, day). Whoever claims the id first hosts; the other connects. ----
+  let P0 = null, P1 = null; // P0 = live presence peer state, P1 = what we want
+  const roomId = (cid, day) => 'showup-room-' + String(cid).replace(/[^a-z0-9]/gi, '').slice(0, 40) + '-' + day;
+  const presence = (cid, day, cb, force) => {
+    if (!cid) { P1 = null; if (P0 && !S) { try { P0.peer.destroy(); } catch (e) {} P0 = null; } return; }
+    if (!force && P1 && P1.cid === cid && P1.day === day && P0) { P1.cb = cb; cb(P0.them); return; }
+    if (S && S.room) return;
+    if (P0) { try { P0.peer.destroy(); } catch (e) {} }
+    P1 = { cid, day, cb }; const id = roomId(cid, day);
+    if (!window.Peer) return;
+    const me = { them: '', peer: null, conn: null, host: false, target: id, pendingCall: null, onCall: null, onConn: null }; P0 = me;
+    const say = () => { if (P1 && P0 === me) P1.cb(me.them); };
+    const retry = () => { if (P0 !== me || S) return; try { me.peer.destroy(); } catch (e) {} setTimeout(() => { if (P0 === me && !S && P1) presence(P1.cid, P1.day, P1.cb, true); }, 1500 + Math.random() * 1500); };
+    const hook = (conn) => {
+      me.conn = conn;
+      const hi = () => conn.send({ t: 'here', name: localStorage.getItem('showup.name') || 'Friend' });
+      if (conn.open) hi(); else conn.on('open', hi);
+      conn.on('data', (m) => { if (m && m.t === 'here') { me.them = m.name; say(); if (S && S.room) { S.them = m.name; } } else if (m && m.t === 'together' && !S) { /* partner started: nudge */ me.them = me.them || 'Friend'; say(); } });
+      conn.on('close', () => { if (me.conn === conn) { me.conn = null; me.them = ''; say(); if (!me.host) retry(); } });
+      if (me.onConn) me.onConn(conn);
+    };
+    const claim = () => {
+      const p = new Peer(id); me.peer = p; me.host = true;
+      p.on('connection', (conn) => { if (me.conn && me.conn.open) { conn.close(); return; } hook(conn); });
+      p.on('call', (call) => { if (me.onCall) me.onCall(call); else me.pendingCall = call; });
+      p.on('error', (e) => { if (P0 !== me) return; if (e.type === 'unavailable-id') { try { p.destroy(); } catch (x) {} join(); } });
+    };
+    const join = () => {
+      const p = new Peer(); me.peer = p; me.host = false;
+      p.on('open', () => { const conn = p.connect(id, { reliable: true }); hook(conn); });
+      p.on('error', (e) => { if (P0 !== me) return; if (e.type === 'peer-unavailable') retry(); });
+    };
+    claim(); cb('');
+  };
+
   // entry points
   window.Duel = {
+    presence,
+    together: (cid, day) => {
+      const cur = window.App && window.App.current(); if (!cur || !P0) return;
+      const me = P0;
+      start(me.host, '', { prompt: cur.prompt, format: cur.format, color: cur.color, sprintMin: cur.sprintMin, challengeId: cur.challengeId, day: cur.day, them: me.them }, me);
+      if (me.conn && me.conn.open) me.conn.send({ t: 'together' });
+    },
     host: () => {
       const cur = window.App && window.App.current(); if (!cur) return;
       start(true, Math.random().toString(36).slice(2, 7), { prompt: cur.prompt, format: cur.format, color: cur.color, sprintMin: cur.sprintMin, challengeId: cur.challengeId, day: cur.day });

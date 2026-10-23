@@ -298,3 +298,9 @@ textarea{font:inherit;font-size:18px}
 
 .wp.cut{background:none;box-shadow:none;aspect-ratio:auto;clip-path:none}.wp.cut .wp-media{position:relative}.wp.cut .wp-media img{position:relative;height:auto;object-fit:contain;filter:drop-shadow(0 4px 6px rgba(0,0,0,.45))}.wp.cut::before{display:none}
 .fb-status{font-size:14px;color:#777;margin:8px 0 18px;min-height:1em}
+.here{font-size:15px;color:var(--green);display:inline-flex;align-items:center;gap:8px;margin-left:6px}
+.here::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--green)}
+.m-box .m-h{font-size:34px;font-weight:700;letter-spacing:-.04em;line-height:1;margin-bottom:18px}
+.m-box .nm,.m-box .lk{display:block;width:100%;font-size:17px;padding:12px 14px;border:1.5px solid var(--ink);background:#fff;margin:0 0 12px}
+.m-box .nm{border-width:0 0 1.5px;background:transparent;padding-left:0}
+.m-box .row{display:flex;gap:10px}

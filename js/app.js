@@ -39,7 +39,7 @@
     if (c.format) return;
     c.format = 'poster'; c.context = c.scenario && c.scenario !== 'own' ? c.scenario : ''; c.ctxText = c.scenario === 'own' ? (c.own || '') : ''; c.own = ''; c.practice = 'poster';
   });
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} try { window.dispatchEvent(new Event('showup-save')); } catch (e) {} };
 
   let pieces = [];
   const loadPieces = async () => { pieces = (await DB.all('pieces')).sort((a, b) => a.createdAt - b.createdAt); };
@@ -62,7 +62,7 @@
     if (fk === 'poster') {
       const job = S && S.jobs.length ? S.jobs[i % S.jobs.length] : { title: ctx ? cap(ctx) + ' — poster' : 'Poster', for: ctx ? 'a poster for ' + ctx : 'a poster on a topic you pick', copy: '' };
       const [brief, constraint] = v(BRIEFS[sk][S && S.jobs.length ? c.context : 'own']);
-      return Object.assign(base, { piece: 'poster', title: job.title, brief: brief.replace('{job}', job.for) + (job.copy ? ' Copy: ' + job.copy : ''), constraint });
+      return Object.assign(base, { piece: 'poster', title: job.title, brief: brief.replace('{job}', job.for).replace(/\bposter for a poster (for|on)\b/gi, 'poster $1').replace(/\ba poster for a poster\b/gi, 'a poster') + (job.copy ? ' Copy: ' + job.copy : ''), constraint });
     }
     const piece = F.pieces.length ? F.pieces[i % F.pieces.length] : (c.own || 'piece');
     const [brief, constraint] = v(FBRIEFS[fk][sk]);
@@ -137,7 +137,7 @@
   };
 
   // ---- new challenge: format, skills, optional context ----
-  let pick = null, plan = 'mixed', planSkill = null, ctxPick = '';
+  let mode = 'solo', pick = null, plan = 'mixed', planSkill = null, ctxPick = '';
   const renderChallenges = () => {
     const box = $('typeCards'); box.innerHTML = '';
     FORMAT_ORDER.forEach((k) => { const v = FORMATS[k];
@@ -154,6 +154,11 @@
       const c = el('button', 'tcard small' + (plan === k ? ' on' : '')); c.type = 'button'; c.append(el('b', '', n), el('span', '', d));
       c.onclick = () => { plan = k; if (k === 'one' && !planSkill) planSkill = 'type'; renderChallenges(); }; pb.append(c);
     });
+    const mb = $('modeCards'); mb.innerHTML = '';
+    [['solo', 'Solo', 'Just you.'], ['duo', 'With a friend', 'Same prompts, side by side.']].forEach(([k, n, d]) => {
+      const c = el('button', 'tcard small' + (mode === k ? ' on' : '')); c.type = 'button'; c.append(el('b', '', n), el('span', '', d));
+      c.onclick = () => { mode = k; renderChallenges(); }; mb.append(c);
+    });
     const sb = $('skillChips'); sb.innerHTML = ''; sb.hidden = false;
     SKILL_ORDER.forEach((k) => { const c = el('button', 'chip' + (plan === 'one' && planSkill === k ? ' on' : ''), SKILLS[k].name); c.type = 'button'; c.onclick = () => { plan = 'one'; planSkill = k; renderChallenges(); }; sb.append(c); });
     sb.classList.toggle('dim', plan !== 'one');
@@ -166,7 +171,8 @@
     e.preventDefault(); if (!pick) return;
     const f = $('newForm'); const seg = (n) => Number(f.querySelector(`.seg[data-name=${n}] .on`).value);
     const c = makeChallenge(pick, pick === 'own' ? $('nfOwn').value.trim() : '', ctxPick, ctxPick ? '' : $('nfCtx').value.trim(), plan, plan === 'one' ? planSkill : null, seg('days'), seg('sprint'));
-    state.challenges.push(c); save(); pick = null; plan = 'mixed'; planSkill = null; ctxPick = ''; $('nfOwn').value = ''; $('nfCtx').value = ''; openDay(c.id);
+    if (mode === 'duo') { c.shared = { host: myName(), members: [myName()] }; if (window.Cloud) window.Cloud.shareChallenge(c); }
+    state.challenges.push(c); save(); const wasDuo = mode === 'duo'; mode = 'solo'; pick = null; plan = 'mixed'; planSkill = null; ctxPick = ''; $('nfOwn').value = ''; $('nfCtx').value = ''; openDay(c.id); if (wasDuo) invite(c);
   });
 
   // ---- day view ----
@@ -199,6 +205,9 @@
     $('pFocus').textContent = 'Day ' + day + ' · ' + p.skill + ' — ' + p.piece + (p.context ? ' · for ' + p.context : '');
     $('pTitle').textContent = p.title; $('pBrief').textContent = p.brief;
     $('pConstraint').textContent = p.constraint;
+    const duo = !!c.shared; $('duelBtn').hidden = duo; $('togetherBtn').hidden = !duo; $('inviteBtn').hidden = !duo;
+    if (duo && window.Duel) window.Duel.presence(c.id, day, (who) => { const h = $('duoHere'); h.hidden = !who; h.textContent = who ? who + ' is here' : ''; });
+    else if (window.Duel) window.Duel.presence(null);
     setStep(step);
   };
 
@@ -521,6 +530,41 @@
     await loadPieces();
   };
 
+  // ---- shared ('With a friend') challenges ----
+  const myName = () => localStorage.getItem('showup.name') || '';
+  const b64e = (o) => btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const b64d = (s) => JSON.parse(decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/')))));
+  const FIELDS = ['id', 'format', 'practice', 'own', 'context', 'ctxText', 'plan', 'skill', 'days', 'sprintMin', 'createdAt'];
+  const inviteLink = (c) => { const o = {}; FIELDS.forEach((k) => { o[k] = c[k]; }); o.by = (c.shared && c.shared.host) || myName(); return location.origin + location.pathname + '?join=' + b64e(o); };
+  const modal = (build) => { const m = $('modal'), b = $('mBox'); b.innerHTML = ''; b.className = 'm-box setup'; b.style.padding = '34px'; build(b, () => { m.hidden = true; }); m.hidden = false; m.onclick = (e) => { if (e.target === m) m.hidden = true; }; };
+  const nameInput = () => { const i = el('input', 'nm'); i.placeholder = 'Your name'; i.value = myName(); i.maxLength = 24; i.oninput = () => localStorage.setItem('showup.name', i.value.trim()); return i; };
+  const invite = (c) => modal((b, close) => {
+    b.append(el('h2', 'm-h', 'Invite a friend'));
+    const nm = nameInput(); nm.oninput = () => { localStorage.setItem('showup.name', nm.value.trim()); c.shared.host = c.shared.host || nm.value.trim(); if (!c.shared.members[0]) c.shared.members[0] = nm.value.trim(); save(); inp.value = inviteLink(c); };
+    const inp = el('input', 'lk'); inp.readOnly = true; inp.value = inviteLink(c); inp.id = 'inviteLink'; inp.onclick = () => inp.select();
+    const cp = el('button', 'btn hot', 'Copy link'); cp.onclick = async () => { inp.value = inviteLink(c); try { await navigator.clipboard.writeText(inp.value); } catch (e) { inp.select(); document.execCommand('copy'); } cp.textContent = 'Copied'; };
+    const done = el('button', 'btn quiet', 'Done'); done.onclick = close;
+    const row = el('div', 'row'); row.append(cp, done); b.append(nm, inp, row);
+  });
+  $('inviteBtn').addEventListener('click', () => { const c = openC(); if (c) invite(c); });
+  $('togetherBtn').addEventListener('click', () => { const c = openC(); const day = c && currentDay(c); if (day && window.Duel) window.Duel.together(c.id, day); });
+  const handleJoin = () => {
+    const raw = params.get('join'); if (!raw) return false;
+    let o; try { o = b64d(raw); } catch (e) { return false; }
+    history.replaceState(null, '', location.pathname);
+    if (byId(o.id)) { openDay(o.id); return true; }
+    go('today');
+    modal((b, close) => {
+      b.append(el('h2', 'm-h', 'Join ' + (o.by || 'your friend') + '’s challenge'));
+      const c0 = Object.assign({}, o); delete c0.by;
+      b.append(el('p', 'mid', nameOf(c0) + ' · ' + c0.days + ' days'));
+      const nm = nameInput(); const go = el('button', 'btn hot', 'Join'); go.id = 'joinBtn';
+      go.onclick = () => { const c = Object.assign(c0, { shared: { host: o.by || '', members: [o.by || '', myName()] } }); state.challenges.push(c); save(); if (window.Cloud) window.Cloud.joinChallenge(c); close(); renderSide(); openDay(c.id); };
+      b.append(nm, go);
+    });
+    return true;
+  };
+
   // ---- hooks for the 1v1 duel (js/duel.js) ----
   window.App = {
     current: () => { const c = openC(); const day = c && currentDay(c); return day ? { challengeId: c.id, day, name: nameOf(c), format: c.format || 'poster', sprintMin: c.sprintMin || 20, color: colorOf(c.practice), prompt: promptFor(c, day) } : null; },
@@ -543,7 +587,7 @@
     if (state.settings.demo && !pieces.some((p) => p.demo)) await setDemo(true);
     renderSide();
     const v = params.get('view');
-    if (v === 'day' && state.openId) openDay(state.openId, params.get('step') || undefined); else go(VIEWS.includes(v) ? v : 'today');
+    if (handleJoin()) { /* join modal */ } else if (v === 'day' && state.openId) openDay(state.openId, params.get('step') || undefined); else go(VIEWS.includes(v) ? v : 'today');
     if (state.sprint) { lastStage = state.sprint.stage; tick(true); Widget.showMini(widgetActions); Widget.update(sprintView()); }
   })();
 })();
