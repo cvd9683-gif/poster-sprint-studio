@@ -60,7 +60,7 @@
         <h1 class="p-title" id="pTitle"></h1>
         <p class="p-brief" id="pBrief"></p>
         <p class="p-con" id="pConstraint"></p>
-        <div class="row"><button class="btn" data-step-go="lesson">Lesson</button><button class="btn hot" data-step-go="sprint">Sprint</button></div>
+        <div class="row"><button class="btn" data-step-go="lesson">Lesson</button><button class="btn hot" data-step-go="sprint">Sprint</button><button class="btn quiet" id="duelBtn">Challenge a friend</button></div>
       </div>
 
       <div class="pane" id="s-lesson" hidden>
@@ -129,6 +129,8 @@
 <script src="js/widget.js"></script>
 <script src="js/feedback.js"></script>
 <script src="js/app.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="js/duel.js"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"}}</script>
 <script type="module" src="js/wall3d.js"></script>
 </body>

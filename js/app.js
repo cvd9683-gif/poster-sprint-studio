@@ -521,6 +521,20 @@
     await loadPieces();
   };
 
+  // ---- hooks for the 1v1 duel (js/duel.js) ----
+  window.App = {
+    current: () => { const c = openC(); const day = c && currentDay(c); return day ? { challengeId: c.id, day, name: nameOf(c), format: c.format || 'poster', sprintMin: c.sprintMin || 20, color: colorOf(c.practice), prompt: promptFor(c, day) } : null; },
+    savePiece: async ({ blob, prompt, format, challengeId, day, name, vs, mine, critique }) => {
+      const piece = { id: uid(), challengeId: challengeId || 'duel', challengeName: name, practice: format || 'poster', format: format || 'poster', day: day || 1, prompt: Object.assign({}, prompt, { vs }), blob, mime: blob.type, reflection: { tried: '', worked: '', change: '' }, critique: critique || null, date: dateKey(), createdAt: Date.now(), demo: false, duel: { vs, mine } };
+      if (piece.format !== 'poster') { try { piece.sheet = await makeSheet(blob, piece.format); piece.sheetV = SHEET_V; } catch (err) {} }
+      await DB.put('pieces', piece); await loadPieces(); renderSide(); return piece;
+    },
+    setCritique: async (id, cr) => { const p = pieces.find((x) => x.id === id); if (p) { p.critique = cr; await DB.put('pieces', p); } },
+    showWall: async (ids) => { pasting = ids[0]; go('wall'); for (const id of ids) await wallPaste(id); pasting = null; },
+    openPiece: (id) => openPiece(id),
+    srcOf: (id) => { const p = pieces.find((x) => x.id === id); return p ? srcOf(p) : ''; }
+  };
+
   // ---- boot ----
   (async () => {
     
