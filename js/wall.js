@@ -37,6 +37,7 @@
         wp.style.setProperty('--dx', Math.round(r() * 8 - 4) + 'px');
         if (r() < 0.35) wp.classList.add('peel' + (r() < 0.5 ? 'L' : 'R'));
         if (r() < 0.2 && c === 1) wp.classList.add('torn');
+        if (p.sheet) wp.classList.add('cut');
         const m = el('div', 'wp-media'); m.append(media(p));
         wp.append(m, el('i', 'wrinkle'), el('i', 'sheen'));
         wp.onclick = () => onOpen(p.id);

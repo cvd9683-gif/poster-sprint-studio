@@ -110,7 +110,8 @@ const makePoster = (piece, src, i, r) => new Promise((resolve) => {
     let h = 1.22, w = h * ar; if (w > 1.05) { w = 1.05; h = w / ar; }
     const geo = new THREE.PlaneGeometry(w, h, 24, 30); geo.translate(0, -h / 2, 0); // pivot at the top edge
     const mat = new THREE.MeshPhysicalMaterial({ map: tex, roughness: .82, clearcoat: 0, clearcoatRoughness: .2, side: THREE.DoubleSide, sheen: .3, sheenColor: new THREE.Color('#fff8e6') });
-    const mesh = new THREE.Mesh(geo, mat); mesh.castShadow = true; mesh.receiveShadow = true;
+    if (piece.sheet) { mat.transparent = true; mat.alphaTest = .5; }
+    const mesh = new THREE.Mesh(geo, mat); if (piece.sheet) mesh.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: tex, alphaTest: .5 }); mesh.castShadow = true; mesh.receiveShadow = true;
     const col = Math.floor(i / 2), row = i % 2;
     const x = col * 1.3 + (r() - .5) * .18 + (row ? .3 : 0), yTop = (row ? -.08 : 1.42) + (r() - .5) * .1;
     mesh.position.set(x, yTop, .006 + i * .0012); mesh.rotation.z = (r() - .5) * .05;

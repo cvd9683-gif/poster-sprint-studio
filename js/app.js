@@ -381,7 +381,7 @@
     if (!upload) { $('saveMsg').textContent = 'Add your exported piece first.'; drop.classList.add('nudge'); setTimeout(() => drop.classList.remove('nudge'), 600); return; }
     const c = openC(); const day = currentDay(c); const fd = new FormData(e.target);
     const piece = { id: uid(), challengeId: c.id, challengeName: nameOf(c), practice: c.format || 'poster', format: c.format || 'poster', day, prompt: promptFor(c, day), blob: upload, mime: upload.type, reflection: { tried: fd.get('tried'), worked: '', change: fd.get('change') }, critique: null, date: dateKey(), createdAt: Date.now(), demo: false };
-    if (piece.format !== 'poster') { try { piece.sheet = await makeSheet(upload, (FORMATS[piece.format] || FORMATS.own).tag, piece.prompt.piece); } catch (err) {} }
+    if (piece.format !== 'poster') { try { piece.sheet = await makeSheet(upload, piece.format); piece.sheetV = SHEET_V; } catch (err) {} }
     await DB.put('pieces', piece); await loadPieces();
     if (state.sprint && state.sprint.challengeId === c.id) stopSprint();
     upload = null; e.target.reset(); drop.querySelectorAll('img').forEach((n) => n.remove()); drop.classList.remove('has'); $('dropHint').hidden = false;
@@ -394,20 +394,62 @@
     Feedback.open(piece, blobUrl(piece.id, piece.blob), crit, { onWall: () => Feedback.close(), retry: () => window.critique({ blob: piece.blob, prompt: piece.prompt, practice: piece.practice, reflection: piece.reflection }).then(async (cr) => { piece.critique = cr; await DB.put('pieces', piece); return cr; }) });
   });
 
-  // Non-poster work gets printed out: the image on a paper sheet with a stamped format tag (aspect ratio kept).
-  const makeSheet = (blob, tag, piece) => new Promise((res, rej) => {
+  // Non-poster work is pasted up as a die-cut print: app = iPhone mockup, web = browser window, brand = clean sheet.
+  const SHEET_V = 2;
+  const rr = (g, x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
+  const makeSheet = (blob, format) => new Promise((res, rej) => {
     const img = new Image(); img.onload = () => {
-      const W = 1200, pad = 70, iw = W - pad * 2, ih = Math.round(iw * img.height / img.width), maxH = 1700;
-      const h = Math.min(ih, maxH), w = h < ih ? Math.round(h * img.width / img.height) : iw;
-      const c = document.createElement('canvas'); c.width = W; c.height = h + pad * 2 + 110; const g = c.getContext('2d');
-      g.fillStyle = '#f4f1ea'; g.fillRect(0, 0, c.width, c.height);
-      g.drawImage(img, (W - w) / 2, pad, w, h); g.strokeStyle = 'rgba(0,0,0,.15)'; g.strokeRect((W - w) / 2, pad, w, h);
-      g.font = '600 26px Helvetica, Arial, sans-serif'; g.fillStyle = '#555'; g.fillText(String(piece || '').toUpperCase(), pad, c.height - 60);
-      g.save(); g.translate(W - pad - 10, c.height - 50); g.rotate(-0.06); g.font = '900 64px Helvetica, Arial, sans-serif';
-      const tw = g.measureText(tag).width + 28; g.strokeStyle = '#e5322d'; g.lineWidth = 4; g.strokeRect(-tw, -56, tw, 80); g.fillStyle = '#e5322d'; g.fillText(tag, -tw + 14, 6); g.restore();
+      const ar = img.width / img.height; const c = document.createElement('canvas'); const g = c.getContext('2d');
+      const paper = (x, y, w, h, r) => { g.save(); g.shadowColor = 'rgba(0,0,0,.18)'; g.shadowBlur = 14; g.shadowOffsetY = 4; rr(g, x, y, w, h, r); g.fillStyle = '#fbf8f1'; g.fill(); g.restore(); };
+      if (format === 'app') {
+        const SW = 860, SH = Math.round(SW / Math.min(ar, .75)), bez = 26, cut = 46, side = 10;
+        const BW = SW + bez * 2, BH = SH + bez * 2, R = 150;
+        c.width = BW + (cut + side) * 2; c.height = BH + cut * 2;
+        const bx = cut + side, by = cut;
+        paper(side + 6, 6, BW + cut * 2 - 12, BH + cut * 2 - 12, R + cut - 8);
+        // side buttons
+        g.fillStyle = '#3a3a40';
+        [[by + 230, 60], [by + 330, 120], [by + 470, 120]].forEach(([y, h]) => { rr(g, bx - side, y, side + 4, h, 4); g.fill(); });
+        rr(g, bx + BW - 4, by + 380, side + 4, 190, 4); g.fill();
+        // titanium rim + black bezel
+        const gr = g.createLinearGradient(bx, by, bx + BW, by + BH); gr.addColorStop(0, '#8d8b88'); gr.addColorStop(.5, '#4a4946'); gr.addColorStop(1, '#a3a19d');
+        rr(g, bx, by, BW, BH, R); g.fillStyle = gr; g.fill();
+        rr(g, bx + 5, by + 5, BW - 10, BH - 10, R - 5); g.fillStyle = '#0b0b0d'; g.fill();
+        // screen
+        const sx = bx + bez, sy = by + bez, sr = R - bez;
+        g.save(); rr(g, sx, sy, SW, SH, sr); g.clip(); g.fillStyle = '#fff'; g.fillRect(sx, sy, SW, SH);
+        const dh = SW / ar; g.drawImage(img, sx, sy + Math.max(0, (SH - dh) / 2), SW, dh); g.restore();
+        // dynamic island
+        rr(g, bx + BW / 2 - 125, sy + 30, 250, 72, 36); g.fillStyle = '#000'; g.fill();
+        g.beginPath(); g.arc(bx + BW / 2 + 82, sy + 66, 13, 0, 7); g.fillStyle = '#1a1c2a'; g.fill();
+        // glass sheen
+        const sh = g.createLinearGradient(sx, sy, sx + SW, sy + SH); sh.addColorStop(0, 'rgba(255,255,255,.10)'); sh.addColorStop(.35, 'rgba(255,255,255,0)'); sh.addColorStop(1, 'rgba(255,255,255,0)');
+        g.save(); rr(g, sx, sy, SW, SH, sr); g.clip(); g.fillStyle = sh; g.fillRect(sx, sy, SW, SH); g.restore();
+      } else if (format === 'web') {
+        const W = 1400, IH = Math.min(Math.round(W / ar), 1800), TB = 74, cut = 40, R = 22;
+        c.width = W + cut * 2; c.height = IH + TB + cut * 2;
+        paper(6, 6, c.width - 12, c.height - 12, R + 30);
+        const x = cut, y = cut;
+        g.save(); g.shadowColor = 'rgba(0,0,0,.25)'; g.shadowBlur = 24; g.shadowOffsetY = 8; rr(g, x, y, W, IH + TB, R); g.fillStyle = '#fff'; g.fill(); g.restore();
+        g.save(); rr(g, x, y, W, IH + TB, R); g.clip();
+        g.fillStyle = '#ecebe8'; g.fillRect(x, y, W, TB); g.fillStyle = '#d6d4cf'; g.fillRect(x, y + TB - 2, W, 2);
+        g.drawImage(img, 0, 0, img.width, Math.min(img.height, img.width * IH / W), x, y + TB, W, IH); g.restore();
+        ['#ff5f57', '#febc2e', '#28c840'].forEach((col, k) => { g.beginPath(); g.arc(x + 36 + k * 30, y + TB / 2, 10, 0, 7); g.fillStyle = col; g.fill(); });
+        rr(g, x + W / 2 - 260, y + 18, 520, 38, 19); g.fillStyle = '#fff'; g.fill();
+        g.font = '500 20px -apple-system, Helvetica, Arial, sans-serif'; g.fillStyle = '#77736c'; g.textAlign = 'center'; g.fillText('showup.site', x + W / 2, y + 44);
+      } else {
+        const W = 1200, pad = 70, iw = W - pad * 2, ih = Math.min(Math.round(iw / ar), 1700), w = Math.round(ih * ar);
+        c.width = W; c.height = ih + pad * 2; g.fillStyle = '#f4f1ea'; g.fillRect(0, 0, W, c.height);
+        g.drawImage(img, (W - w) / 2, pad, w, ih);
+      }
       c.toBlob((b) => b ? res(b) : rej(new Error('sheet')), 'image/png');
     }; img.onerror = rej; img.src = URL.createObjectURL(blob);
   });
+  const refreshSheets = async () => {
+    for (const p of pieces) if (p.blob && p.format && p.format !== 'poster' && p.sheetV !== SHEET_V) {
+      try { p.sheet = await makeSheet(p.blob, p.format); p.sheetV = SHEET_V; urls.delete(p.id + ':s'); await DB.put('pieces', p); } catch (e) {}
+    }
+  };
 
   // ---- the wall ----
   const urls = new Map();
@@ -427,6 +469,7 @@
     return use3d;
   };
   const renderWall = async () => {
+    await refreshSheets();
     const list = visible();
     $('stats').textContent = list.length + (list.length === 1 ? ' piece' : ' pieces');
     if (await has3d()) Wall3D.render($('wall3d'), list, srcOf, (id) => openPiece(id), pasting);

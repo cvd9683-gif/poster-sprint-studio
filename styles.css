@@ -295,3 +295,5 @@ textarea{font:inherit;font-size:18px}
 .brand .wm{display:inline-flex;flex-direction:column;font-family:'Arial Black','Helvetica Neue',Arial,sans-serif;font-weight:900;font-size:34px;line-height:.82;letter-spacing:-1.5px;text-transform:uppercase;color:#111;transform:rotate(-3deg);transform-origin:left top}
 .brand .wm span:first-child{background:var(--mustard);padding:5px 7px 3px;box-shadow:3px 3px 0 #111}
 .brand .wm span:last-child{background:var(--red);color:#f4f1ea;padding:5px 7px 3px;margin:-2px 0 0 18px;transform:rotate(4deg);align-self:flex-start;box-shadow:3px 3px 0 #111}
+
+.wp.cut{background:none;box-shadow:none;aspect-ratio:auto;clip-path:none}.wp.cut .wp-media{position:relative}.wp.cut .wp-media img{position:relative;height:auto;object-fit:contain;filter:drop-shadow(0 4px 6px rgba(0,0,0,.45))}.wp.cut::before{display:none}
