@@ -81,7 +81,7 @@ async function openai(key, model, mime, data, text) {
 
 const pickProvider = () => {
   const e = process.env; const m = e.CRITIQUE_MODEL;
-  if (e.GEMINI_API_KEY) return { name: 'gemini', key: e.GEMINI_API_KEY, model: m || 'gemini-3.8-flash', call: gemini };
+  if (e.GEMINI_API_KEY) return { name: 'gemini', key: e.GEMINI_API_KEY, model: m || 'gemini-3.5-flash', call: gemini };
   if (e.ANTHROPIC_API_KEY) return { name: 'anthropic', key: e.ANTHROPIC_API_KEY, model: m || 'claude-sonnet-5-5', call: anthropic };
   if (e.OPENAI_API_KEY) return { name: 'openai', key: e.OPENAI_API_KEY, model: m || 'gpt-5.4-mini', call: openai };
   return null;
@@ -99,7 +99,7 @@ module.exports = async (req, res) => {
     if (!m) return res.status(400).json({ error: 'bad_image', message: 'Send a PNG, JPG, WebP, or GIF image.' });
     if (m[3].length > 4_000_000) return res.status(413).json({ error: 'too_large', message: 'Image is too large.' });
     // Gemini: fall back through other Flash models when one is overloaded.
-    const models = prov.name === 'gemini' ? [...new Set([prov.model, 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-flash-latest'])] : [prov.model];
+    const models = prov.name === 'gemini' ? [...new Set([prov.model, 'gemini-3.5-flash', 'gemini-3.7-flash', 'gemini-3.8-flash', 'gemini-flash-latest'])] : [prov.model];
     // Two passes over the fallbacks with growing backoff, inside a ~90s budget.
     const t0 = Date.now(); let lastErr, attempt = 0;
     for (let pass = 0; pass < 2; pass++) for (const model of models) {
