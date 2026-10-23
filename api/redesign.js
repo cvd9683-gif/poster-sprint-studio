@@ -11,11 +11,19 @@ module.exports = async (req, res) => {
     if (!m) return res.status(400).json({ available: false, reason: 'bad_image' });
     const moves = (b.moves || []).map((x) => '- ' + x.action).join('\n');
     const prompt = 'Edit this design. Keep the same words, layout idea, style, and palette, but apply these changes:\n' + moves + '\n' + (b.summary || '') + '\nReturn only the edited image at the same aspect ratio.';
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-      method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({ contents: [{ parts: [{ inline_data: { mime_type: m[1], data: m[3] } }, { text: prompt }] }], generationConfig: { responseModalities: ['IMAGE', 'TEXT'] } })
-    });
-    const j = await r.json();
+    const models = [...new Set([model, 'gemini-3.1-flash-image', 'gemini-2.5-flash-image'])];
+    let r, j = {};
+    for (let a = 0; a < 4; a++) {
+      if (a) await new Promise((ok) => setTimeout(ok, 800 * 2 ** a));
+      try {
+        r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(models[a % models.length])}:generateContent`, {
+          method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': key }, signal: AbortSignal.timeout(40000),
+          body: JSON.stringify({ contents: [{ parts: [{ inline_data: { mime_type: m[1], data: m[3] } }, { text: prompt }] }], generationConfig: { responseModalities: ['IMAGE', 'TEXT'] } })
+        });
+        j = await r.json();
+      } catch (e) { r = { ok: false, status: 504 }; j = {}; }
+      if (r.ok || ![429, 500, 502, 503, 504].includes(r.status)) break;
+    }
     if (!r.ok) return res.status(200).json({ available: false, reason: r.status === 429 ? 'quota' : 'error', message: String((j.error && j.error.message) || '').slice(0, 200) });
     const part = ((j.candidates || [])[0]?.content?.parts || []).find((p) => p.inlineData || p.inline_data);
     if (!part) return res.status(200).json({ available: false, reason: 'no_image' });

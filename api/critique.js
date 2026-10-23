@@ -23,6 +23,9 @@ const userText = (b) => {
     '"works":"one sentence","push":"one sentence","constraint":"one short sentence","score":integer 1-5 for the focus skill only}';
 };
 
+// Transient = overloaded / rate-limited / timed out: worth retrying.
+const transient = (e) => /\b(429|500|502|503|504)\b|high demand|overload|unavailable|rate|quota|exhausted|timeout|timed out|aborted|fetch failed|did not return JSON/i.test(String(e && e.message || e));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const clamp01 = (n) => Math.max(0, Math.min(1, Number(n) / 1000 || 0));
 const box = (b) => { if (!Array.isArray(b) || b.length < 4) return null; const [y0, x0, y1, x1] = b.map(clamp01); const x = Math.min(x0, x1), y = Math.min(y0, y1); return { x, y, w: Math.max(.04, Math.abs(x1 - x0)), h: Math.max(.04, Math.abs(y1 - y0)) }; };
 const parse = (text) => {
@@ -49,7 +52,7 @@ async function gemini(key, model, mime, data, text) {
     })
   });
   const j = await r.json();
-  if (!r.ok) throw new Error((j.error && j.error.message) || 'Gemini error ' + r.status);
+  if (!r.ok) throw new Error(r.status + ' ' + ((j.error && j.error.message) || 'Gemini error'));
   return ((j.candidates || [])[0]?.content?.parts || []).map((p) => p.text || '').join('');
 }
 
@@ -60,7 +63,7 @@ async function anthropic(key, model, mime, data, text) {
       { type: 'image', source: { type: 'base64', media_type: mime, data } }, { type: 'text', text }] }] })
   });
   const j = await r.json();
-  if (!r.ok) throw new Error((j.error && j.error.message) || 'Anthropic error ' + r.status);
+  if (!r.ok) throw new Error(r.status + ' ' + ((j.error && j.error.message) || 'Anthropic error'));
   return (j.content || []).map((c) => c.text || '').join('');
 }
 
@@ -72,7 +75,7 @@ async function openai(key, model, mime, data, text) {
       { role: 'user', content: [{ type: 'text', text }, { type: 'image_url', image_url: { url: `data:${mime};base64,${data}` } }] }] })
   });
   const j = await r.json();
-  if (!r.ok) throw new Error((j.error && j.error.message) || 'OpenAI error ' + r.status);
+  if (!r.ok) throw new Error(r.status + ' ' + ((j.error && j.error.message) || 'OpenAI error'));
   return j.choices?.[0]?.message?.content || '';
 }
 
@@ -96,16 +99,21 @@ module.exports = async (req, res) => {
     if (!m) return res.status(400).json({ error: 'bad_image', message: 'Send a PNG, JPG, WebP, or GIF image.' });
     if (m[3].length > 4_000_000) return res.status(413).json({ error: 'too_large', message: 'Image is too large.' });
     // Gemini: fall back through other Flash models when one is overloaded.
-    const models = prov.name === 'gemini' ? [prov.model, 'gemini-3.5-flash', 'gemini-3.7-flash', 'gemini-flash-latest', 'gemini-3.5-flash'] : [prov.model];
-    let lastErr;
-    for (const model of models) {
+    const models = prov.name === 'gemini' ? [...new Set([prov.model, 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-flash-latest'])] : [prov.model];
+    // Two passes over the fallbacks with growing backoff, inside a ~90s budget.
+    const t0 = Date.now(); let lastErr, attempt = 0;
+    for (let pass = 0; pass < 2; pass++) for (const model of models) {
+      if (Date.now() - t0 > 90000) break;
+      if (attempt) await sleep(Math.min(6000, 500 * 2 ** attempt) + Math.random() * 300);
+      attempt++;
       try {
         const text = await prov.call(prov.key, model, m[1], m[3], userText(b));
-        return res.status(200).json(Object.assign(parse(text), { provider: prov.name, model }));
-      } catch (e) { lastErr = e; console.error(model, e.message); }
+        return res.status(200).json(Object.assign(parse(text), { provider: prov.name, model, attempts: attempt }));
+      } catch (e) { lastErr = e; console.error(model, e.message); if (!transient(e)) break; }
     }
     throw lastErr;
   } catch (err) {
-    return res.status(502).json({ error: 'provider_error', message: String(err.message || err).slice(0, 300) });
+    const busy = transient(err);
+    return res.status(busy ? 503 : 502).json({ error: busy ? 'busy' : 'provider_error', message: busy ? 'The critic is busy.' : String(err.message || err).slice(0, 300) });
   }
 };

@@ -126,16 +126,18 @@
     const sd = el('div', 'fb-side');
     root.append(stage, sd, x);
     img.onload = () => { const r = img.naturalWidth / img.naturalHeight; root.style.setProperty('--ar', r); };
-    sd.append(el('p', 'fb-kind', 'Critique'), el('h2', 'fb-h loading', 'Reading your poster'));
+    const stat = el('p', 'fb-status'); sd.append(el('p', 'fb-kind', 'Critique'), el('h2', 'fb-h loading', 'Reading your piece'), stat);
+    st.onStatus = (e) => { stat.textContent = e.detail || ''; };
     frame.classList.add('scanning');
     critP.then((c) => { if (!st || st.piece !== piece) return; frame.classList.remove('scanning'); st.crit = c; show(0); })
       .catch((err) => {
         if (!st || st.piece !== piece) return; frame.classList.remove('scanning'); sd.innerHTML = '';
-        sd.append(el('p', 'fb-kind', 'Critique'), el('h2', 'fb-h', err.message || 'Feedback is unavailable.'));
+        sd.append(el('p', 'fb-kind', 'Critique'), el('h2', 'fb-h', err.message || 'Feedback is unavailable.'), el('p', 'fb-status', 'Your piece is saved on the wall.'));
         if (opts && opts.retry) { const b = el('button', 'btn hot', 'Try again'); b.onclick = () => open(piece, src, opts.retry(), opts); sd.append(b); }
         const w = el('button', 'btn quiet', 'Back to the wall'); w.onclick = () => (opts && opts.onWall ? opts.onWall() : close()); sd.append(w);
       });
   };
+  window.addEventListener('critique-status', (e) => { if (st && st.onStatus) st.onStatus(e); });
   const close = () => { const r = $('fb'); if (r) { r.hidden = true; r.innerHTML = ''; } st = null; };
   document.addEventListener('keydown', (e) => {
     if (!st || !st.crit) { if (e.key === 'Escape' && st) close(); return; }

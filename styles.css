@@ -297,3 +297,4 @@ textarea{font:inherit;font-size:18px}
 .brand .wm span:last-child{background:var(--red);color:#f4f1ea;padding:5px 7px 3px;margin:-2px 0 0 18px;transform:rotate(4deg);align-self:flex-start;box-shadow:3px 3px 0 #111}
 
 .wp.cut{background:none;box-shadow:none;aspect-ratio:auto;clip-path:none}.wp.cut .wp-media{position:relative}.wp.cut .wp-media img{position:relative;height:auto;object-fit:contain;filter:drop-shadow(0 4px 6px rgba(0,0,0,.45))}.wp.cut::before{display:none}
+.fb-status{font-size:14px;color:#777;margin:8px 0 18px;min-height:1em}

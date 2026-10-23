@@ -482,7 +482,7 @@
     const p = pieces.find((x) => x.id === id); if (!p) return;
     const crit = p.critique ? Promise.resolve(p.critique) : p.svg ? Promise.reject(new Error('Demo poster.')) : window.critique({ blob: p.blob, prompt: p.prompt, practice: p.practice, reflection: p.reflection }).then(async (cr) => { p.critique = cr; await DB.put('pieces', p); return cr; });
     crit.catch(() => {});
-    Feedback.open(p, srcOf(p), crit, { onWall: () => Feedback.close(), remove: async () => { if (!confirm('Take this poster down?')) return; await DB.del('pieces', p.id); await loadPieces(); Feedback.close(); renderSide(); renderWall(); } });
+    Feedback.open(p, srcOf(p), crit, { onWall: () => Feedback.close(), retry: p.svg ? null : () => window.critique({ blob: p.blob, prompt: p.prompt, practice: p.practice, reflection: p.reflection }).then(async (cr) => { p.critique = cr; await DB.put('pieces', p); return cr; }), remove: async () => { if (!confirm('Take this poster down?')) return; await DB.del('pieces', p.id); await loadPieces(); Feedback.close(); renderSide(); renderWall(); } });
   };
 
   // ---- export / import ----
