@@ -127,7 +127,7 @@
     root.append(stage, sd, x);
     img.onload = () => { const r = img.naturalWidth / img.naturalHeight; root.style.setProperty('--ar', r); };
     const stat = el('p', 'fb-status'); sd.append(el('p', 'fb-kind', 'Critique'), el('h2', 'fb-h loading', 'Reading your piece'), stat);
-    st.onStatus = (e) => { stat.textContent = e.detail || ''; };
+    st.onStatus = (e) => { stat.textContent = e.detail || ''; }; stat.textContent = lastStatus;
     frame.classList.add('scanning');
     critP.then((c) => { if (!st || st.piece !== piece) return; frame.classList.remove('scanning'); st.crit = c; show(0); })
       .catch((err) => {
@@ -137,7 +137,8 @@
         const w = el('button', 'btn quiet', 'Back to the wall'); w.onclick = () => (opts && opts.onWall ? opts.onWall() : close()); sd.append(w);
       });
   };
-  window.addEventListener('critique-status', (e) => { if (st && st.onStatus) st.onStatus(e); });
+  let lastStatus = '';
+  window.addEventListener('critique-status', (e) => { lastStatus = e.detail || ''; if (st && st.onStatus) st.onStatus(e); });
   const close = () => { const r = $('fb'); if (r) { r.hidden = true; r.innerHTML = ''; } st = null; };
   document.addEventListener('keydown', (e) => {
     if (!st || !st.crit) { if (e.key === 'Escape' && st) close(); return; }
