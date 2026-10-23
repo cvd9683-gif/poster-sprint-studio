@@ -1,4 +1,4 @@
-# Poster Sprint Studio
+# Show Up
 
 A daily design-practice coach for creative web tools. Plain HTML/CSS/JS with no build step, plus one Vercel function.
 

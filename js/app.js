@@ -1,4 +1,4 @@
-/* Poster Sprint Studio v2: Today / Challenges / The Wall. Classic script, no build step. */
+/* Show Up: Today / Challenges / The Wall. Classic script, no build step. */
 (() => {
   const { FORMATS, FORMAT_ORDER, FBRIEFS, PRACTICES, EXTRA_LESSONS, SCENARIOS, SKILLS, SKILL_ORDER, BRIEFS } = window.STUDIO_DATA;
   const LESSONS = window.LESSONS;
@@ -305,7 +305,7 @@
     const v = sprintView(); const s = state.sprint; if (!s || v.done) return;
     const target = v.stages[v.idx].to * v.totalMs; s.startedAt -= (target - v.e) / SPEED + 5; save(); tick(true);
   };
-  const stopSprint = () => { state.sprint = null; save(); Widget.close(); lastStage = -1; document.title = 'Poster Sprint Studio'; renderSprintPane(); renderRun(); };
+  const stopSprint = () => { state.sprint = null; save(); Widget.close(); lastStage = -1; document.title = 'Show Up'; renderSprintPane(); renderRun(); };
   $('spStart').addEventListener('click', startSprint);
   $('spPop').addEventListener('click', () => Widget.open(widgetActions).then(() => tick(true)));
   $('spPause').addEventListener('click', togglePause);

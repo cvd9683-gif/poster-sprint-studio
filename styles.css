@@ -1,4 +1,4 @@
-/* Poster Sprint Studio v2: Swiss/editorial base + NYC wheatpaste accents */
+/* Show Up: Swiss/editorial base + NYC wheatpaste accents */
 :root{--paper:#f5f5f3;--ink:#111;--mid:#74746f;--rule:#cdcdc8;--light:#d6d6d1;
   --mustard:#f2b705;--pink:#ff3e9a;--violet:#5b3fd1;--green:#12a150;--red:#e5322d;--c:var(--red)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -291,3 +291,7 @@ textarea{font:inherit;font-size:18px}
 #skillChips{margin-top:-12px}#skillChips.dim .chip{opacity:.45}
 .tcard{padding-top:74px}.tcard.small{padding-top:22px}.kicker{font-size:22px}
 #ctxChips{margin-bottom:10px}.nf-row small{font-weight:400;opacity:.5;font-size:.6em;display:block}
+
+.brand .wm{display:inline-flex;flex-direction:column;font-family:'Arial Black','Helvetica Neue',Arial,sans-serif;font-weight:900;font-size:34px;line-height:.82;letter-spacing:-1.5px;text-transform:uppercase;color:#111;transform:rotate(-3deg);transform-origin:left top}
+.brand .wm span:first-child{background:var(--mustard);padding:5px 7px 3px;box-shadow:3px 3px 0 #111}
+.brand .wm span:last-child{background:var(--red);color:#f4f1ea;padding:5px 7px 3px;margin:-2px 0 0 18px;transform:rotate(4deg);align-self:flex-start;box-shadow:3px 3px 0 #111}
