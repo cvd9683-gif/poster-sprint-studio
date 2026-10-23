@@ -4,8 +4,21 @@ if (cfg && cfg.apiKey) boot().catch((e) => console.warn('cloud off:', e));
 
 async function boot() {
   const V = 'https://www.gstatic.com/firebasejs/10.12.2/';
-  const [{ initializeApp }, A, F, S] = await Promise.all(['firebase-app', 'firebase-auth', 'firebase-firestore', 'firebase-storage'].map((m) => import(V + m + '.js')));
-  const app = initializeApp(cfg), auth = A.getAuth(app), db = F.getFirestore(app), st = S.getStorage(app);
+  const [{ initializeApp }, A, F] = await Promise.all(['firebase-app', 'firebase-auth', 'firebase-firestore'].map((m) => import(V + m + '.js')));
+  const app = initializeApp(cfg), auth = A.getAuth(app), db = F.getFirestore(app);
+  // images: downscale to JPEG, upload via /api/upload (Vercel Blob)
+  const shrink = async (blob) => {
+    const bm = await createImageBitmap(blob); const k = Math.min(1, 1600 / Math.max(bm.width, bm.height));
+    const c = document.createElement('canvas'); c.width = Math.round(bm.width * k); c.height = Math.round(bm.height * k);
+    c.getContext('2d').drawImage(bm, 0, 0, c.width, c.height);
+    for (const q of [0.86, 0.75, 0.6, 0.45]) { const b = await new Promise((r) => c.toBlob(r, 'image/jpeg', q)); if (b.size < 2.4e6 || q === 0.45) return b; }
+  };
+  const b64 = (b) => new Promise((r) => { const f = new FileReader(); f.onload = () => r(String(f.result).split(',')[1]); f.readAsDataURL(b); });
+  const upload = async (id, blob) => {
+    const j = await shrink(blob);
+    const r = await fetch('/api/upload', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await user.getIdToken()) }, body: JSON.stringify({ id, type: 'image/jpeg', data: await b64(j) }) });
+    if (!r.ok) throw new Error('upload ' + r.status); return (await r.json()).url;
+  };
   const KEY = 'posterSprintStudio.v3';
   const local = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } };
   let user = null, pulling = false;
@@ -17,7 +30,7 @@ async function boot() {
   const pushPiece = async (p) => {
     if (!user || !p || !p.id) return;
     const meta = clean(p); delete meta.blob;
-    if (p.blob instanceof Blob) { const r = S.ref(st, `users/${user.uid}/pieces/${p.id}`); await S.uploadBytes(r, p.blob, { contentType: p.blob.type || 'image/png' }); meta.path = r.fullPath; }
+    if (p.blob instanceof Blob && !p.url) meta.url = await upload(String(p.id), p.blob);
     await F.setDoc(F.doc(col('pieces'), String(p.id)), meta, { merge: true });
   };
   const pushChallenges = async () => {
@@ -32,6 +45,7 @@ async function boot() {
   // ---- shared challenges ----
   const shareDoc = (id) => F.doc(db, 'sharedChallenges', String(id));
   window.Cloud = {
+    user: () => user, auth, F, db,
     shareChallenge: (c) => user && F.setDoc(shareDoc(c.id), { ...clean(c), owner: user.uid, members: [user.uid] }).catch(console.warn),
     joinChallenge: (c) => user && F.updateDoc(shareDoc(c.id), { members: F.arrayUnion(user.uid) }).catch(() => {}),
   };
@@ -53,7 +67,7 @@ async function boot() {
       const mine = new Set((await DB.all('pieces')).map((p) => String(p.id)));
       for (const d of (await F.getDocs(col('pieces'))).docs) {
         if (mine.has(d.id)) continue; const m = d.data();
-        try { if (m.path) m.blob = await (await fetch(await S.getDownloadURL(S.ref(st, m.path)))).blob(); } catch (e) {}
+        try { if (m.url) m.blob = await (await fetch(m.url)).blob(); } catch (e) {}
         await put0('pieces', m); changed = true;
       }
       const prof = await F.getDoc(u()); if (prof.exists() && prof.data().name && !localStorage.getItem('showup.name')) localStorage.setItem('showup.name', prof.data().name);
