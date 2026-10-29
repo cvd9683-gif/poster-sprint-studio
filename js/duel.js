@@ -62,12 +62,18 @@
   let S = null; // session
 
   const blankStream = () => { const c = document.createElement('canvas'); c.width = 64; c.height = 48; c.getContext('2d').fillRect(0, 0, 64, 48); return c.captureStream(1); };
-  const getCam = async () => {
-    try { return await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: true }); } catch (e) {}
-    try { return await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } }); } catch (e) {}
-    try { return await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (e) {}
-    return null;
-  };
+  // Camera is optional. Ask once, never block the connection on it: an ignored or denied prompt just means no video.
+  const getCam = () => new Promise((res) => {
+    let done = false; const fin = (st) => { if (done) { if (st) st.getTracks().forEach((t) => t.stop()); return; } done = true; res(st || null); };
+    setTimeout(() => fin(null), 12000);
+    const md = navigator.mediaDevices; if (!md || !md.getUserMedia) { fin(null); return; }
+    md.getUserMedia({ video: { width: 640, height: 480 }, audio: true }).then(fin, (e) => {
+      if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) { fin(null); return; }
+      md.getUserMedia({ video: { width: 640, height: 480 } }).then(fin, () => fin(null)); // e.g. no microphone
+    });
+  });
+  const CONNECT_MS = 25000;
+  const NET_HELP = 'School and office wifi often blocks direct connections between laptops. Try a phone hotspot on both sides, or make sure your friend still has the page open. If it keeps failing, you can each run the same sprint solo.';
   const toSmall = (blob, max = 1400) => new Promise((res, rej) => {
     const img = new Image(); const u = URL.createObjectURL(blob);
     img.onload = () => { const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight)); const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s); const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(u); c.toBlob(res, 'image/jpeg', 0.88); };
@@ -95,14 +101,24 @@
     root.append(top, body); document.body.append(root);
     return { root, body };
   };
-  const leave = () => {
-    if (S && S.phase !== 'done' && S.phase !== 'judge' && !confirm('Leave the challenge?')) return;
+  const leave = (force) => {
+    if (!force && S && S.phase !== 'done' && S.phase !== 'judge' && S.phase !== 'lobby' && S.phase !== 'error' && !confirm('Leave the challenge?')) return;
     if (S) { try { S.conn && S.conn.close(); S.peer && S.peer.destroy(); } catch (e) {} if (S.local) S.local.getTracks().forEach((t) => t.stop()); closePip(); clearInterval(S.timer); S.ui.root.remove(); }
     const room = S && S.room; S = null; if (!room) history.replaceState(null, '', location.pathname);
     P0 = null; if (room) setTimeout(() => P1 && presence(P1.cid, P1.day, P1.cb, true), 300);
   };
 
   const send = (m) => { if (S && S.conn && S.conn.open) S.conn.send(m); };
+  // A plain failure screen: what went wrong, what to try, and a way out.
+  const fail = (title, body, retry) => {
+    if (!S) return; S.phase = 'error'; clearTimeout(S.connT);
+    const b = S.ui.body; b.innerHTML = '';
+    b.append(el('h1', 'd-h', title), el('p', 'd-p', body));
+    const row = el('div', 'd-row');
+    if (retry) { const r = el('button', 'btn hot', 'Try again'); r.onclick = retry; row.append(r); }
+    const x = el('button', 'btn quiet', 'Close'); x.onclick = () => leave(true); row.append(x);
+    b.append(row);
+  };
   const now = () => Date.now() + (S && !S.host ? S.offset : 0); // host-clock time
 
   // ---- bar ----
@@ -140,6 +156,8 @@
       } else if (P) b.append(el('p', 'd-p', P.brief));
       const ready = S.connected && (!S.room || S.themIn);
       const cams = el('div', 'd-cams'); cams.append(S.tMe, S.tThem); b.append(cams);
+      b.append(el('p', 'd-mid', 'Camera and mic are optional. If you say no, you can still sprint together.'));
+      if (S.slow && !ready) b.append(el('p', 'd-p', 'Still trying to connect. ' + NET_HELP));
       const row = el('div', 'd-row'); const nm = el('input', 'd-name'); nm.placeholder = 'Your name'; nm.value = S.name || ''; nm.maxLength = 24;
       nm.oninput = () => { S.name = nm.value.trim(); localStorage.setItem('showup.name', S.name); setTile(S.tMe, null, S.camOn, S.name || 'You'); send({ t: 'name', name: S.name }); };
       row.append(nm);
@@ -250,7 +268,7 @@
   const wire = (conn) => {
     S.conn = conn;
     const onOpen = () => {
-      S.connected = true;
+      S.connected = true; S.slow = false; clearTimeout(S.connT);
       if (!S.host) { send({ t: 'hello', name: S.name, cam: S.camOn }); for (let i = 0; i < 5; i++) setTimeout(() => send({ t: 'ping', a: Date.now() }), i * 400); }
       render();
     };
@@ -261,30 +279,49 @@
   const onStream = (rs) => { S.remote = rs; const camOn = rs.getVideoTracks().length > 0 && S.themCam !== false; setTile(S.tThem, rs, camOn, null); };
 
   const start = async (host, code, info, ex) => {
-    if (S) leave();
-    if (!window.Peer) { alert('Couldn’t load the connection library.'); return; }
+    if (S) leave(true);
     S = { host, code, phase: 'lobby', offset: 0, name: localStorage.getItem('showup.name') || '', ui: open(), tMe: tile('me'), tThem: tile('them') };
-    Object.assign(S, info || {});
+    Object.assign(S, info || {}); const me = S;
     S.tThem.classList.add('wait'); S.tThem.querySelector('.ini').textContent = host ? 'Waiting…' : 'Connecting…';
+    if (!window.Peer || !window.RTCPeerConnection) { fail('Live sessions are not available here.', 'The connection library did not load, or this browser blocks live connections. Check your internet, pause strict ad or script blockers, and try Chrome, Edge, or Firefox.', () => location.reload()); return; }
     render();
-    S.local = await getCam(); S.camOn = !!(S.local && S.local.getVideoTracks().length); S.themCam = true;
-    setTile(S.tMe, S.local, S.camOn, S.name || 'You');
-    const out = S.local && S.local.getVideoTracks().length ? S.local : (() => { const b = blankStream(); if (S.local) S.local.getAudioTracks().forEach((t) => b.addTrack(t)); return b; })();
     S.timer = setInterval(tick, 250);
-    if (ex) { S.room = true; S.peer = ex.peer; S.timer = S.timer; if (host) { S.link = ''; ex.onCall = (call) => { call.answer(out); call.on('stream', onStream); }; if (ex.pendingCall) { ex.onCall(ex.pendingCall); ex.pendingCall = null; } } if (ex.conn) wire(ex.conn); ex.onConn = (c) => wire(c); if (!host && ex.conn) { const call = ex.peer.call(ex.target, out); call && call.on('stream', onStream); } if (host && ex.conn && ex.conn.open) send({ t: 'room', prompt: S.prompt, format: S.format, color: S.color, name: S.name, cam: S.camOn }); render(); setTimeout(() => send({ t: 'cam', on: S.camOn }), 1500); return; }
+    // Connect right away; the camera joins whenever (if ever) it is allowed.
+    S.outP = getCam().then((local) => {
+      if (S !== me) { if (local) local.getTracks().forEach((t) => t.stop()); return null; }
+      S.local = local; S.camOn = !!(local && local.getVideoTracks().length); S.themCam = S.themCam !== false;
+      setTile(S.tMe, local, S.camOn, S.name || 'You'); send({ t: 'cam', on: S.camOn });
+      if (S.camOn) return local;
+      const b = blankStream(); if (local) local.getAudioTracks().forEach((t) => b.addTrack(t)); return b;
+    });
+    const answer = (call) => S.outP.then((out) => { if (S === me && out) { call.answer(out); call.on('stream', onStream); } });
+    const dial = (pr, target) => S.outP.then((out) => { if (S === me && out) { const call = pr.call(target, out); if (call) call.on('stream', onStream); } });
+    S.connT = setTimeout(() => { if (S !== me || S.connected) return; S.slow = true; if (S.phase === 'lobby') render(); if (!host) fail('Could not reach your friend.', NET_HELP, () => start(host, code, info, ex)); }, CONNECT_MS);
+    if (ex) {
+      S.room = true; S.peer = ex.peer;
+      if (host) { S.link = ''; ex.onCall = answer; if (ex.pendingCall) { answer(ex.pendingCall); ex.pendingCall = null; } }
+      if (ex.conn) wire(ex.conn); ex.onConn = (c) => wire(c);
+      if (!host && ex.conn) dial(ex.peer, ex.target);
+      if (host && ex.conn && ex.conn.open) send({ t: 'room', prompt: S.prompt, format: S.format, color: S.color, name: S.name, cam: S.camOn });
+      render(); return;
+    }
     const peer = host ? new Peer(PREFIX + code) : new Peer(); S.peer = peer;
-    peer.on('error', (e) => { if (!S) return; if (e.type === 'unavailable-id' && host) { leave(); return start(true, Math.random().toString(36).slice(2, 7), info); } if (!S.connected) { S.ui.body.innerHTML = ''; S.ui.body.append(el('h1', 'd-h', e.type === 'peer-unavailable' ? 'This link has expired.' : 'Couldn’t connect.'), el('p', 'd-mid', 'Ask your friend for a new link.')); } });
+    peer.on('error', (e) => {
+      if (S !== me) return;
+      if (e.type === 'unavailable-id' && host) { leave(true); start(true, Math.random().toString(36).slice(2, 7), info); return; }
+      if (S.connected) return;
+      if (e.type === 'peer-unavailable') fail('This link has expired.', 'The person who sent it has closed the page, or started a new session. Ask them for a fresh link.');
+      else if (e.type === 'browser-incompatible') fail('This browser cannot do live sessions.', 'Try the latest Chrome, Edge, or Firefox.');
+      else if (e.type === 'network' || e.type === 'server-error' || e.type === 'socket-error' || e.type === 'socket-closed') fail('Could not reach the connection service.', 'Check your internet and try again. ' + NET_HELP, () => start(host, host ? Math.random().toString(36).slice(2, 7) : code, info));
+      else fail('Could not connect.', NET_HELP, () => start(host, code, info));
+    });
     if (host) {
       S.link = location.origin + location.pathname + '?duel=' + code; render();
       peer.on('connection', (conn) => { if (S.conn && S.conn.open) { conn.close(); return; } wire(conn); });
-      peer.on('call', (call) => { call.answer(out); call.on('stream', onStream); });
+      peer.on('call', answer);
     } else {
-      peer.on('open', () => {
-        wire(peer.connect(PREFIX + code, { reliable: true }));
-        const call = peer.call(PREFIX + code, out); call && call.on('stream', onStream);
-      });
+      peer.on('open', () => { wire(peer.connect(PREFIX + code, { reliable: true })); dial(peer, PREFIX + code); });
     }
-    setTimeout(() => send({ t: 'cam', on: S.camOn }), 1500);
   };
 
   // ---- shared challenges: presence room per (challenge, day). Whoever claims the id first hosts; the other connects. ----
@@ -298,14 +335,14 @@
     P1 = { cid, day, cb }; const id = roomId(cid, day);
     if (!window.Peer) return;
     const me = { them: '', peer: null, conn: null, host: false, target: id, pendingCall: null, onCall: null, onConn: null }; P0 = me;
-    const say = () => { if (P1 && P0 === me) P1.cb(me.them); };
+    const say = () => { if (P1 && P0 === me) P1.cb(me.them, me.waiting); };
     const retry = () => { if (P0 !== me || S) return; try { me.peer.destroy(); } catch (e) {} setTimeout(() => { if (P0 === me && !S && P1) presence(P1.cid, P1.day, P1.cb, true); }, 1500 + Math.random() * 1500); };
     const hook = (conn) => {
       me.conn = conn;
       const hi = () => conn.send({ t: 'here', name: localStorage.getItem('showup.name') || 'Friend' });
       if (conn.open) hi(); else conn.on('open', hi);
-      conn.on('data', (m) => { if (m && m.t === 'here') { me.them = m.name; say(); if (S && S.room) { S.them = m.name; } } else if (m && m.t === 'together' && !S) { /* partner started: nudge */ me.them = me.them || 'Friend'; say(); } });
-      conn.on('close', () => { if (me.conn === conn) { me.conn = null; me.them = ''; say(); if (!me.host) retry(); } });
+      conn.on('data', (m) => { if (m && m.t === 'here') { me.them = m.name; say(); if (S && S.room) { S.them = m.name; } } else if (m && m.t === 'together' && !S) { me.them = me.them || 'Friend'; me.waiting = true; say(); } });
+      conn.on('close', () => { if (me.conn === conn) { me.conn = null; me.them = ''; me.waiting = false; say(); if (!me.host) retry(); } });
       if (me.onConn) me.onConn(conn);
     };
     const claim = () => {
@@ -326,8 +363,10 @@
   window.Duel = {
     presence,
     together: (cid, day) => {
-      const cur = window.App && window.App.current(); if (!cur || !P0) return;
+      const cur = window.App && window.App.current(); if (!cur) return;
       const me = P0;
+      if (!window.Peer || !window.RTCPeerConnection) { window.App.notice('Live sessions are not available here', 'The connection library did not load, or this browser blocks live connections. Check your internet and try Chrome, Edge, or Firefox. You can still run today\u2019s sprint solo with the same brief.'); return; }
+      if (!me || !me.conn || !me.conn.open) { window.App.notice('Your friend is not here yet', 'You both need this day open at the same time. When their name shows up as here, press Start together. If they have it open and still do not show up, your network may be blocking live connections. ' + 'You can still each run the same sprint solo.'); return; }
       start(me.host, '', { prompt: cur.prompt, format: cur.format, color: cur.color, sprintMin: cur.sprintMin, challengeId: cur.challengeId, day: cur.day, them: me.them }, me);
       if (me.conn && me.conn.open) me.conn.send({ t: 'together' });
     },
