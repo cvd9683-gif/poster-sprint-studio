@@ -72,16 +72,39 @@ const init = (container) => {
   const glueMat = new THREE.MeshPhysicalMaterial({ color: '#fffbe8', transparent: true, opacity: .32, roughness: .08, clearcoat: 1, clearcoatRoughness: .05 });
   const glue = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), glueMat); glue.visible = false; scene.add(glue);
 
-  R = { renderer, scene, camera, sun, lamp, wall, walk, group, roller, glue, posters: [], container, camX: 0, camTX: 0, camZ: 4.4, camTZ: 4.4, camY: .05, camTY: .05, mx: 0, my: 0, shake: 0, minX: 0, maxX: 0, anims: [], onOpen: null, loader: new THREE.TextureLoader() };
+  R = { renderer, scene, camera, sun, lamp, wall, walk, group, roller, glue, posters: [], container, camX: 0, camTX: 0, camZ: 4.4, camTZ: 4.4, camY: .05, camTY: .05, mx: 0, my: 0, shake: 0, minX: 0, maxX: 0, anims: [], onOpen: null, busy: false, loader: new THREE.TextureLoader() };
 
   const resize = () => { const w = container.clientWidth, h = container.clientHeight || 600; renderer.setSize(w, h, false); renderer.domElement.style.width = w + 'px'; renderer.domElement.style.height = h + 'px'; camera.aspect = w / h; camera.updateProjectionMatrix(); };
   new ResizeObserver(resize).observe(container); resize();
-  const dom = renderer.domElement;
-  dom.addEventListener('pointermove', (e) => { const b = dom.getBoundingClientRect(); R.mx = (e.clientX - b.left) / b.width * 2 - 1; R.my = (e.clientY - b.top) / b.height * 2 - 1; dom.style.cursor = pickAt(e) ? 'pointer' : 'grab'; if (drag) { R.camTX = clamp(drag.x - (e.clientX - drag.cx) * .006, R.minX, R.maxX); moved = true; } });
-  let drag = null, moved = false;
-  dom.addEventListener('pointerdown', (e) => { drag = { x: R.camTX, cx: e.clientX }; moved = false; });
-  addEventListener('pointerup', (e) => { if (drag && !moved) { const p = pickAt(e); if (p && R.onOpen) R.onOpen(p.id); } drag = null; });
-  dom.addEventListener('wheel', (e) => { e.preventDefault(); R.camTX = clamp(R.camTX + (e.deltaX + e.deltaY) * .004, R.minX, R.maxX); }, { passive: false });
+  const dom = renderer.domElement; dom.style.touchAction = 'none';
+  // Pan on both axes and zoom. Figma-style: scroll = up/down, Shift + scroll = sideways, pinch or Ctrl/Cmd + scroll = zoom.
+  const perPx = () => 2 * R.camZ * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) / (dom.clientHeight || 600);
+  const pts = new Map(); let drag = null, moved = false, pinch = null;
+  dom.addEventListener('pointermove', (e) => {
+    const b = dom.getBoundingClientRect(); R.mx = (e.clientX - b.left) / b.width * 2 - 1; R.my = (e.clientY - b.top) / b.height * 2 - 1;
+    if (pts.has(e.pointerId)) pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch && pts.size === 2) { const [p, q] = [...pts.values()]; R.camTZ = pinch.z * pinch.d / Math.max(20, Math.hypot(p.x - q.x, p.y - q.y)); moved = true; return; }
+    if (drag) {
+      const dx = e.clientX - drag.cx, dy = e.clientY - drag.cy;
+      if (Math.hypot(dx, dy) > 6) moved = true; // small jitter still counts as a click
+      if (moved) { const k = perPx(); R.camTX = drag.x - dx * k; R.camTY = drag.y + dy * k; }
+    }
+    dom.style.cursor = drag && moved ? 'grabbing' : pickAt(e) ? 'pointer' : 'grab';
+  });
+  dom.addEventListener('pointerdown', (e) => {
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); try { dom.setPointerCapture(e.pointerId); } catch (x) {}
+    if (pts.size === 2) { const [p, q] = [...pts.values()]; pinch = { d: Math.hypot(p.x - q.x, p.y - q.y), z: R.camTZ }; drag = null; return; }
+    drag = { x: R.camTX, y: R.camTY, cx: e.clientX, cy: e.clientY }; moved = false;
+  });
+  const up = (e) => { if (drag && !moved && !pinch) { const p = pickAt(e); if (p && R.onOpen) R.onOpen(p.id); } pts.delete(e.pointerId); if (pts.size < 2) pinch = null; drag = null; };
+  dom.addEventListener('pointerup', up);
+  dom.addEventListener('pointercancel', (e) => { pts.delete(e.pointerId); pinch = null; drag = null; });
+  dom.addEventListener('wheel', (e) => {
+    e.preventDefault(); const k = e.deltaMode === 1 ? 16 : 1;
+    if (e.ctrlKey || e.metaKey) { R.camTZ *= Math.exp(e.deltaY * k * .006); return; }
+    const m = perPx() * k;
+    if (e.shiftKey && !e.deltaX) R.camTX += e.deltaY * m; else { R.camTX += e.deltaX * m; R.camTY -= e.deltaY * m; }
+  }, { passive: false });
   const ray = new THREE.Raycaster();
   const pickAt = (e) => { const b = dom.getBoundingClientRect(); ray.setFromCamera({ x: (e.clientX - b.left) / b.width * 2 - 1, y: -((e.clientY - b.top) / b.height * 2 - 1) }, camera); const hit = ray.intersectObjects(R.posters.filter((p) => p.mesh.visible).map((p) => p.mesh))[0]; return hit && R.posters.find((p) => p.mesh === hit.object); };
 
@@ -90,16 +113,37 @@ const init = (container) => {
     const dt = Math.min(.05, clock.getDelta()); const t = clock.elapsedTime;
     if (!container.isConnected || container.offsetParent === null) { requestAnimationFrame(loop); return; }
     R.anims = R.anims.filter((a) => a(t, dt) !== false);
+    if (!R.busy) bound();
     R.camX += (R.camTX - R.camX) * Math.min(1, dt * 4); R.camZ += (R.camTZ - R.camZ) * Math.min(1, dt * 3); R.camY += (R.camTY - R.camY) * Math.min(1, dt * 3);
     const sh = R.shake > 0 ? (Math.random() - .5) * R.shake : 0; R.shake *= .86;
     camera.position.set(R.camX + R.mx * .18 + sh, R.camY - R.my * .1 + sh * .6, R.camZ);
-    camera.lookAt(R.camX, R.camY * .5, 0);
+    camera.lookAt(R.camX, R.camY, 0);
     sun.position.set(R.camX - 2.5, 3.5, 4); sun.target.position.set(R.camX, 0, 0); lamp.position.x = R.camX + .4;
     R.posters.forEach((p) => p.dirty && deform(p, t));
     renderer.render(scene, camera);
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
+};
+
+// Keep the camera on the wall: x across all posters (a bit more when zoomed in), y within the wall's height.
+const Z_MIN = 1.5, Z_MAX = 5.6, WALL_H = 3.6;
+const bound = () => {
+  R.camTZ = clamp(R.camTZ, Z_MIN, Z_MAX);
+  const half = R.camTZ * Math.tan(THREE.MathUtils.degToRad(R.camera.fov / 2));
+  const ySpan = Math.max(.15, WALL_H / 2 - half + .25);
+  R.camTY = clamp(R.camTY, -ySpan, ySpan);
+  const xPad = Math.max(.3, (4.4 - R.camTZ) * .5 + .6);
+  R.camTX = clamp(R.camTX, R.minX - xPad, R.maxX + xPad);
+};
+const nav = (a) => {
+  if (!R || R.busy) return;
+  const k = R.camTZ / 4.4 * .6;
+  if (a === 'left') R.camTX -= k; else if (a === 'right') R.camTX += k;
+  else if (a === 'up') R.camTY += k * .7; else if (a === 'down') R.camTY -= k * .7;
+  else if (a === 'in') R.camTZ /= 1.25; else if (a === 'out') R.camTZ *= 1.25;
+  else if (a === 'fit') { R.camTZ = 4.4; R.camTY = .05; }
+  bound();
 };
 
 // ---- poster sheets ----
@@ -177,8 +221,9 @@ const paste = async (id) => {
   const p = R.posters.find((x) => x.id === id); if (!p) return;
   const { roller, glue } = R; const m = p.mesh;
   // 1. walk to the spot
+  R.busy = true;
   R.camTX = clamp(p.x, R.minX - 1, R.maxX + 1); R.camTZ = 3.0; R.camTY = p.yTop - p.h / 2 + .05;
-  await wait(.9);
+  await wait(1.2);
   // 2. roller lays a coat of wet paste
   const gx = p.x, top = p.yTop + .04, bot = p.yTop - p.h - .04;
   glue.visible = true; glue.position.set(gx, top, p.z0 - .0005); glue.scale.set(p.w + .12, .001, 1); glue.material.opacity = .32;
@@ -212,8 +257,8 @@ const paste = async (id) => {
   // 5. it dries: wet sheen fades, a few bubbles stay
   R.camTZ = 3.6;
   await anim(1.6, (k) => { m.material.clearcoat = 1 - k * .92; m.material.roughness = .35 + k * .47; glue.material.opacity = .32 * (1 - k); p.bAmp = .6 - k * .35; p.wAmp = .005 - k * .0015; });
-  glue.visible = false; p.animating = false; p.dirty = true;
+  glue.visible = false; p.animating = false; p.dirty = true; R.busy = false;
 };
 const anim = (dur, fn) => new Promise((res) => { let t0 = null; R.anims.push((t) => { if (t0 === null) t0 = t; const k = clamp((t - t0) / dur); fn(k); R.posters.forEach((p) => { if (p.animating) p.dirty = true; }); if (k >= 1) { res(); return false; } }); });
 
-window.Wall3D = { ok: () => canGL, render, paste, get ready() { return ready.p; } };
+window.Wall3D = { ok: () => canGL, render, paste, nav, get ready() { return ready.p; } };

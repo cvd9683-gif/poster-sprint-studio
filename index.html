@@ -7,14 +7,16 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect x=%274%27 y=%276%27 width=%2756%27 height=%2752%27 fill=%27%23f2b705%27 transform=%27rotate(-4 32 32)%27/%3E%3Ctext x=%2732%27 y=%2746%27 text-anchor=%27middle%27 font-family=%27Arial Black,Arial%27 font-weight=%27900%27 font-size=%2738%27 fill=%27%23111%27%3ESU%3C/text%3E%3C/svg%3E">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 3 4'%3E%3Crect width='3' height='4' fill='%23e5322d'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="styles.css">
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"}}</script>
 </head>
 <body>
 <div class="app" id="app">
   <aside class="side">
     <div class="brand" aria-label="Show Up"><b class="wm"><span>SHOW</span><span>UP</span></b></div>
+    <p class="tagline">A practice coach and sprint timer. You design in Figma, Illustrator, or on paper. We keep time.</p>
     <nav class="nav">
       <button data-view="today" class="navb">Today</button>
-      <button data-view="challenges" class="navb">New</button>
+      <button data-view="challenges" class="navb" title="Add a new daily practice mission">+ Mission</button>
       <button data-view="wall" class="navb">Wall</button>
     </nav>
     <div class="side-streak" id="sideStreak"></div>
@@ -24,12 +26,22 @@
   <main class="main" id="main">
     <section class="view" id="v-today">
       <h1 class="h-xl">Today</h1>
+      <div class="how" id="howItWorks">
+        <p class="how-h">Show Up is a coach, not a canvas.</p>
+        <ol class="how-steps">
+          <li><b>Pick a mission</b><span>A short daily design practice, 3 to 30 days.</span></li>
+          <li><b>Start the sprint</b><span>A small timer floats on top. Switch to Figma, Illustrator, Pinterest, or paper and make the piece there.</span></li>
+          <li><b>Paste it up</b><span>When time is up, export a PNG or JPG and drop it here. It goes on the Wall with feedback.</span></li>
+        </ol>
+        <button class="how-x" id="howHide" type="button" title="Hide">Got it</button>
+      </div>
       <div class="filters" id="todayFilters"></div>
       <div class="cards" id="todayCards"></div>
     </section>
 
     <section class="view" id="v-challenges" hidden>
-      <h1 class="h-xl">New challenge</h1>
+      <h1 class="h-xl">Add a mission</h1>
+      <p class="lede nf-lede">A mission is a short run of daily design sprints. Pick what you will make, and Show Up hands you a brief, a quick lesson, and a timer each day. You do the designing in your own tool.</p>
       <h2 class="nf-step">What are you making?</h2>
       <div class="types" id="typeCards"></div>
       <form class="newf" id="newForm" hidden autocomplete="off">
@@ -37,11 +49,11 @@
         <h2 class="nf-step">Skills</h2>
         <div class="types two" id="planCards"></div>
         <div class="chips" id="skillChips"></div>
-        <div class="nf-row"><h2>Topic <small>optional</small></h2><div><div class="chips" id="ctxChips"></div><input id="nfCtx" placeholder="or type your own, e.g. a bakery"></div></div>
+        <div class="nf-row"><h2>Client <small>optional</small></h2><div><p class="nf-help">Who is it for? Pick a pretend client, type your own, or leave it blank and we suggest a fresh everyday subject each day.</p><div class="chips" id="ctxChips"></div><input id="nfCtx" placeholder="or type your own, e.g. a bakery"></div></div>
         <div class="nf-row"><h2>Days</h2><div class="seg" data-name="days"><button type="button" value="3">3</button><button type="button" value="5" class="on">5</button><button type="button" value="10">10</button><button type="button" value="30">30</button></div></div>
         <div class="nf-row"><h2>Sprint</h2><div class="seg" data-name="sprint"><button type="button" value="10">10 min</button><button type="button" value="20" class="on">20 min</button><button type="button" value="45">45 min</button></div></div>
         <div class="types two" id="modeCards"></div>
-        <button class="btn hot big" type="submit">Start</button>
+        <button class="btn hot big" type="submit">Add mission</button>
       </form>
     </section>
 
@@ -61,7 +73,7 @@
         <h1 class="p-title" id="pTitle"></h1>
         <p class="p-brief" id="pBrief"></p>
         <p class="p-con" id="pConstraint"></p>
-        <div class="row"><button class="btn" data-step-go="lesson">Lesson</button><button class="btn hot" data-step-go="sprint">Sprint</button><button class="btn quiet" id="duelBtn">Challenge a friend</button><button class="btn hot" id="togetherBtn" hidden>Start together</button><button class="btn quiet" id="inviteBtn" hidden>Invite</button><span class="here" id="duoHere" hidden></span></div>
+        <div class="row"><button class="btn" data-step-go="lesson">Lesson</button><button class="btn hot" data-step-go="sprint">Go to sprint</button><button class="btn quiet" id="duelBtn">Challenge a friend</button><button class="btn hot" id="togetherBtn" hidden>Start together</button><button class="btn quiet" id="inviteBtn" hidden>Invite</button><span class="here" id="duoHere" hidden></span></div>
       </div>
 
       <div class="pane" id="s-lesson" hidden>
@@ -77,12 +89,17 @@
             <div class="sp-note" id="spNote"></div>
             <div class="row" id="spCtrl">
               <button class="btn hot" id="spStart">Start</button>
-              <button class="btn quiet" id="spPop" hidden>Pop out</button>
+              <button class="btn quiet" id="spPop" hidden title="Open the timer in a small window that stays on top of Figma and other apps">Float timer on top</button>
               <button class="btn quiet" id="spPause" hidden>Pause</button>
               <button class="btn quiet" id="spNext" hidden>Next</button>
               <button class="btn quiet" id="spReset" hidden>Reset</button>
             </div>
             <div class="sp-hint" id="spHint"></div>
+            <div class="elsewhere" id="spElse">
+              <p class="else-h">Design in your own tool. This page only keeps time.</p>
+              <p class="else-p" id="spElseP">Press Start and a small timer floats on top of your other apps. Leave it open, switch to Figma, Illustrator, Pinterest, or paper, and make the piece there. The timer tells you when to move on.</p>
+              <div class="else-links" id="spLinks"></div>
+            </div>
           </div>
           <ol class="sp-stages" id="spStages"></ol>
         </div>
@@ -92,11 +109,12 @@
         <div class="sub-grid">
           <div class="drop" id="drop" tabindex="0">
             <input type="file" id="pieceFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
-            <div class="drop-hint" id="dropHint"><b>Drop your poster</b><span>or click, or paste</span></div>
+            <div class="drop-hint" id="dropHint"><b>Drop your export</b><span>PNG or JPG from Figma, Illustrator, or a photo of paper. Click, drop, or paste.</span></div>
           </div>
           <form id="reflectForm" class="reflect">
             <label>What did you try?<textarea name="tried" rows="3" required></textarea></label>
             <label>What would you change?<textarea name="change" rows="3" required></textarea></label>
+            <div class="fbpick"><h3>Feedback</h3><div class="seg small" id="fbDepth"><button type="button" value="quick" class="on">Quick</button><button type="button" value="deep">Detailed</button><button type="button" value="skip">Skip for now</button></div></div>
             <button class="btn hot big" type="submit">Paste it up</button>
             <p class="msg" id="saveMsg"></p>
           </form>
@@ -105,14 +123,21 @@
 
       <div class="pane" id="s-done" hidden>
         <h1 class="p-title">Done.</h1>
-        <div class="row"><button class="btn hot" data-go="challenges">New challenge</button><button class="btn quiet" data-go="wall">The wall</button></div>
+        <div class="row"><button class="btn hot" data-go="challenges">Add a mission</button><button class="btn quiet" data-go="wall">The wall</button></div>
       </div>
     </section>
 
     <section class="view wallview" id="v-wall" hidden>
-      <header class="wallhead"><h1 class="h-xl">The Wall</h1><p class="wallcount" id="stats"></p></header>
-      <div class="wall3d" id="wall3d"></div>
-      <div class="wall-scroll" id="wallScroll" hidden><div class="wall" id="wall"></div></div>
+      <header class="wallhead"><h1 class="h-xl">The Wall</h1><div class="wallmeta"><p class="wallcount" id="stats"></p><button class="btn quiet" id="demoBtn" type="button">Show example posters</button></div></header>
+      <div class="wallwrap">
+        <div class="wall3d" id="wall3d"></div>
+        <div class="wallctl" id="wallCtl" hidden>
+          <p class="wallhint">Drag to move around. Scroll to move up and down, Shift + scroll for sideways. Pinch or Ctrl + scroll to zoom. Arrow keys work too.</p>
+          <div class="wallbtns"><button type="button" data-w="left" title="Left">←</button><button type="button" data-w="up" title="Up">↑</button><button type="button" data-w="down" title="Down">↓</button><button type="button" data-w="right" title="Right">→</button><button type="button" data-w="out" title="Zoom out">−</button><button type="button" data-w="in" title="Zoom in">+</button><button type="button" data-w="fit" title="Reset view">Fit</button></div>
+        </div>
+        <div class="wall-scroll" id="wallScroll" hidden><div class="wall" id="wall"></div></div>
+        <div class="pasted" id="pasted" hidden></div>
+      </div>
     </section>
   </main>
 </div>
@@ -134,7 +159,6 @@
 <script src="js/duel.js"></script>
   <script src="js/firebase-config.js"></script>
   <script type="module" src="js/cloud.js"></script>
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"}}</script>
 <script type="module" src="js/wall3d.js"></script>
 </body>
 </html>
