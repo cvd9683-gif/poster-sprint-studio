@@ -2,7 +2,7 @@
    falling back to a draggable in-page mini widget. Same markup + CSS in both. */
 (() => {
   const CSS = `
-  .wg{--c:#e5322d;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;color:#111;background:#f5f5f3;display:grid;grid-template-rows:auto auto 1fr auto;height:100%;box-sizing:border-box;padding:14px 16px 14px;gap:8px;border-top:8px solid var(--c);-webkit-font-smoothing:antialiased}
+  .wg{--c:#e5322d;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;color:#111;background:#f5f5f3;display:grid;grid-template-rows:auto auto 1fr auto auto;height:100%;box-sizing:border-box;padding:14px 16px 14px;gap:8px;border-top:8px solid var(--c);-webkit-font-smoothing:antialiased}
   .wg *{box-sizing:border-box;margin:0}
   .wg-top{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
   .wg-top span:last-child{color:#74746f}
@@ -18,6 +18,7 @@
   .wg button:hover{background:#111;color:#f5f5f3}
   .wg button.hot{background:var(--c);border-color:var(--c);color:#fff}
   .wg.flash{animation:wgf .9s ease 2}@keyframes wgf{50%{background:var(--c);color:#fff}}
+  .wg-tip{font-size:11px;color:#74746f;line-height:1.25}
   .wg-segs{display:flex;gap:2px}.wg-segs i{flex:1;height:3px;background:#d6d6d1}.wg-segs i.d{background:#111}.wg-segs i.c{background:var(--c)}
   `;
   let pip = null; let root = null; let mode = null; let actions = null; let last = '';
@@ -27,7 +28,8 @@
     w.innerHTML = '<div class="wg-top"><span data-k="title"></span><span data-k="count"></span></div>' +
       '<div><div class="wg-clock" data-k="clock">00:00</div><div class="wg-segs" data-k="segs"></div></div>' +
       '<div style="display:grid;gap:8px;align-content:start"><p class="wg-stage" data-k="stage"></p><div class="wg-note" data-k="note"></div></div>' +
-      '<div class="wg-ctrl" data-k="ctrl"></div>';
+      '<div class="wg-ctrl" data-k="ctrl"></div>' +
+      '<p class="wg-tip">Coach only. Design in Figma, Illustrator, or on paper. Keep this timer open.</p>';
     w.addEventListener('click', (e) => { const b = e.target.closest('button[data-a]'); if (b && actions) actions[b.dataset.a](); });
     return w;
   };
@@ -47,7 +49,8 @@
       const n = q('note'); n.innerHTML = ''; v.notes.forEach((t) => { const s = root.ownerDocument.createElement('span'); s.textContent = t; n.append(s); });
       q('ctrl').innerHTML = v.done
         ? '<button class="hot" data-a="submit">Submit piece →</button>'
-        : `<button data-a="pause">${v.paused ? 'Resume' : 'Pause'}</button><button data-a="next">Next</button><button data-a="back" title="Back to the app">App</button>`;
+        : `<button data-a="pause">${v.paused ? 'Resume' : 'Pause'}</button><button data-a="next" title="Skip to the next stage">Next</button>` +
+          (mode === 'pip' ? '<button data-a="back" title="Back to the Show Up tab">Show Up</button>' : window.Widget && window.Widget.supported ? '<button data-a="float" title="Float this timer on top of Figma and other apps">Float</button>' : '');
     }
   };
   const flash = () => { if (!root) return; root.classList.remove('flash'); void root.offsetWidth; root.classList.add('flash'); };
@@ -72,7 +75,7 @@
     if (pip && !pip.closed) { pip.focus(); return 'pip'; }
     if ('documentPictureInPicture' in window && !window.__noPiP) {
       try {
-        pip = await window.documentPictureInPicture.requestWindow({ width: 300, height: 330 });
+        pip = await window.documentPictureInPicture.requestWindow({ width: 300, height: 360 });
         const s = pip.document.createElement('style'); s.textContent = CSS + 'html,body{margin:0;height:100%;background:#f5f5f3}';
         pip.document.head.append(s); pip.document.title = 'Sprint coach';
         root = build(pip.document); pip.document.body.append(root); mode = 'pip'; last = '';
@@ -89,5 +92,5 @@
     if (wasPip && pip) { try { pip.close(); } catch (e) {} pip = null; }
     const box = document.getElementById('mini'); box.hidden = true; box.innerHTML = '';
   };
-  window.Widget = { open, update, close, flash, showMini, get mode() { return mode; }, supported: 'documentPictureInPicture' in window };
+  window.Widget = { open, update, close, flash, showMini, get mode() { return mode; }, get supported() { return 'documentPictureInPicture' in window && !window.__noPiP; } };
 })();
