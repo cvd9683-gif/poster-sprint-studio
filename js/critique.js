@@ -16,14 +16,14 @@
   class NotConfigured extends Error {}
   window.CritiqueNotConfigured = NotConfigured;
 
-  window.critique = async ({ blob, prompt, practice, reflection }) => {
+  window.critique = async ({ blob, prompt, practice, reflection, depth }) => {
     if (location.protocol === 'file:') throw new NotConfigured('The AI critic runs on the hosted site.');
     const image = await toSmallDataURL(blob);
     const status = (t) => window.dispatchEvent(new CustomEvent('critique-status', { detail: t }));
     let r, j = {};
     for (let a = 0; a < 4; a++) { // first try + up to 3 retries on busy/timeout
       if (a) { status('Busy — retrying…'); await new Promise((ok) => setTimeout(ok, 2500 * a)); }
-      try { r = await fetch('/api/critique', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ image, prompt, practice, reflection }) }); }
+      try { r = await fetch('/api/critique', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ image, prompt, practice, reflection, depth: depth === 'deep' ? 'deep' : 'quick' }) }); }
       catch (e) { r = null; j = {}; continue; }
       j = {}; try { j = await r.json(); } catch (e) {}
       if (r.status === 404 || j.error === 'not_configured') throw new NotConfigured('The AI critic isn’t switched on yet.');
@@ -32,6 +32,6 @@
     status('');
     if (!r) throw new Error('Can’t reach the critic.');
     if (!r.ok) throw new Error([429, 500, 502, 503, 504].includes(r.status) ? 'The critic is busy.' : (j.message || 'Feedback failed.'));
-    return { works: j.works, push: j.push, constraint: j.constraint, reply: j.reply, score: j.score, model: j.model, notes: j.notes || [], redesign: j.redesign || null };
+    return { works: j.works, push: j.push, constraint: j.constraint, reply: j.reply, score: j.score, model: j.model, notes: j.notes || [], redesign: j.redesign || null, lesson: j.lesson || '', next: j.next || [], deep: depth === 'deep' };
   };
 })();

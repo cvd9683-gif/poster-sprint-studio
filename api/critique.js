@@ -12,15 +12,17 @@ const SYSTEM = 'You are a warm but honest design critic for a student doing a sh
   'Plain words, no jargon, each field one or two sentences.';
 
 const userText = (b) => {
-  const p = b.prompt || {}; const r = b.reflection || {};
+  const p = b.prompt || {}; const r = b.reflection || {}; const deep = b.depth === 'deep';
   return `Practice: ${b.practice || 'poster'}\nTopic: "${p.title || ''}"\nBrief: ${p.brief || ''}\n` +
     `Constraint: ${p.constraint || ''}\nFocus skill: ${p.skill || p.focus || ''}\nFormat: ${p.format || 'Poster'}${p.piece ? ' (' + p.piece + ')' : ''}\nContext/topic (optional): ${p.context || 'none'}\nTeach this skill as it applies to this format (and context if given): notes, fixes and redesign must target the focus skill for this kind of piece, using conventions of that format (e.g. UI patterns for app screens, web sections, brand assets).\n\n` +
     `Designer's reflection:\n- What I tried: ${r.tried || '-'}\n- What I'd change: ${r.change || '-'}\n\n` +
-    'Teach, do not just grade. Point at 2 to 4 specific regions of the image. Reply with strict JSON only:\n' +
+    (deep ? 'The designer asked for DETAILED feedback: point at 4 to 6 regions, write two or three sentences per note, and explain the why behind each fix. ' : '') +
+    'Teach, do not just grade. Point at ' + (deep ? '4 to 6' : '2 to 4') + ' specific regions of the image. Reply with strict JSON only:\n' +
     '{"reply":"one sentence responding to their reflection",' +
     '"notes":[{"box":[ymin,xmin,ymax,xmax] integers 0-1000 tightly around the region,"kind":"strength" or "fix","title":"2-5 words","note":"what is happening there, one sentence","fix":"one concrete move, e.g. sizes, colors, positions (empty for strengths)"}],' +
     '"redesign":{"summary":"one sentence describing the improved version","moves":[{"box":[ymin,xmin,ymax,xmax] 0-1000 region to change,"action":"short imperative, e.g. Scale date to 2x","color":"#hex suggested color or empty"}]},' +
-    '"works":"one sentence","push":"one sentence","constraint":"one short sentence","score":integer 1-5 for the focus skill only}';
+    '"works":"one sentence","push":"one sentence","constraint":"one short sentence","score":integer 1-5 for the focus skill only' +
+    (deep ? ',"lesson":"two or three sentences on the design principle behind the most important fix","next":["three short practice exercises for tomorrow"]}' : '}');
 };
 
 // Transient = overloaded / rate-limited / timed out: worth retrying.
@@ -32,13 +34,14 @@ const parse = (text) => {
   const m = String(text || '').match(/\{[\s\S]*\}/);
   if (!m) throw new Error('Model did not return JSON');
   const j = JSON.parse(m[0]);
-  const notes = (Array.isArray(j.notes) ? j.notes : []).map((n) => ({ box: box(n.box), kind: n.kind === 'strength' ? 'strength' : 'fix', title: String(n.title || ''), note: String(n.note || ''), fix: String(n.fix || '') })).filter((n) => n.box).slice(0, 4);
+  const notes = (Array.isArray(j.notes) ? j.notes : []).map((n) => ({ box: box(n.box), kind: n.kind === 'strength' ? 'strength' : 'fix', title: String(n.title || ''), note: String(n.note || ''), fix: String(n.fix || '') })).filter((n) => n.box).slice(0, 6);
   const rd = j.redesign || {};
   const moves = (Array.isArray(rd.moves) ? rd.moves : []).map((mv) => ({ box: box(mv.box), action: String(mv.action || ''), color: /^#[0-9a-f]{3,8}$/i.test(mv.color || '') ? mv.color : '' })).filter((mv) => mv.box).slice(0, 5);
   return {
     works: String(j.works || ''), push: String(j.push || ''), constraint: String(j.constraint || ''),
     reply: String(j.reply || ''), score: Math.max(1, Math.min(5, Math.round(Number(j.score) || 3))),
-    notes, redesign: { summary: String(rd.summary || ''), moves }
+    notes, redesign: { summary: String(rd.summary || ''), moves },
+    lesson: String(j.lesson || ''), next: (Array.isArray(j.next) ? j.next : []).map(String).filter(Boolean).slice(0, 3)
   };
 };
 
@@ -59,7 +62,7 @@ async function gemini(key, model, mime, data, text) {
 async function anthropic(key, model, mime, data, text) {
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model, max_tokens: 1500, system: SYSTEM, messages: [{ role: 'user', content: [
+    body: JSON.stringify({ model, max_tokens: 3000, system: SYSTEM, messages: [{ role: 'user', content: [
       { type: 'image', source: { type: 'base64', media_type: mime, data } }, { type: 'text', text }] }] })
   });
   const j = await r.json();
