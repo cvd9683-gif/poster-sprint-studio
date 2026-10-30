@@ -84,6 +84,9 @@
       zoomTo(null); mark(null);
       s.append(el('p', 'fb-kind', 'Your read'), el('h2', 'fb-h', '“' + (c.reply || c.works) + '”'));
       if (c.push) { const f = el('div', 'fb-fix'); f.append(el('b', '', 'Next time'), el('p', '', c.push)); s.append(f); }
+      if (c.lesson) s.append(el('p', 'fb-p', c.lesson));
+      if (c.next && c.next.length) { const ol = el('ol', 'fb-moves fb-next'); c.next.forEach((t) => ol.append(el('li', '', t))); s.append(el('p', 'fb-kind', 'Practice next'), ol); }
+      if (st.opts.deeper && !c.deep) { const d = el('button', 'btn quiet', 'Get more detailed feedback'); const o = Object.assign({}, st.opts, { deeper: null }); d.onclick = () => open(st.piece, st.src, st.opts.deeper(), o); s.append(d); }
       const sc = el('p', 'fb-score'); sc.textContent = (st.piece.prompt.focus || 'Focus') + ' ' + c.score + '/5'; s.append(sc);
       const r = nav(() => show(i - 1), () => st.opts.onWall && st.opts.onWall(), 'Back to the wall'); s.append(r);
       if (st.opts.remove) { const d = el('button', 'fb-link', 'Take it down'); d.onclick = st.opts.remove; s.append(d); }

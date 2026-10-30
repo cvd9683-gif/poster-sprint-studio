@@ -54,19 +54,25 @@
   const skillFor = (c, day) => c.plan === 'one' && SKILLS[c.skill] ? c.skill : SKILL_ORDER[(day - 1) % SKILL_ORDER.length];
   const doneFor = (c) => pieces.filter((p) => p.challengeId === c.id && !p.demo);
   const currentDay = (c) => { const n = doneFor(c).length + 1; return n > c.days ? null : n; };
+  // Everyday subjects for missions with no client, so day 1 is never "a poster on a topic you pick".
+  const SUBJECTS = ['a neighborhood farmers market', 'a late-night ramen shop', 'a lost cat', 'a community garden open day', 'a bike repair pop-up', 'a used bookstore sale',
+    'a laundromat movie night', 'a dog adoption weekend', 'a corner bodega', 'a rooftop swap meet', 'a school bake sale', 'a pickup soccer league',
+    'a free museum night', 'a record store reopening', 'a subway busker festival', 'a plant swap', 'a late bus route', 'a public pool opening'];
+  const hashOf = (t) => { let h = 7; for (const ch of String(t)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
+  const subjectFor = (c, day) => SUBJECTS[(hashOf(c.id) + (day - 1) * 7) % SUBJECTS.length];
   const promptFor = (c, day) => {
     const fk = FORMATS[c.format] ? c.format : 'poster'; const F = FORMATS[fk]; const sk = skillFor(c, day); const i = day - 1;
     const v = (cell) => cell[(c.plan === 'one' ? i : Math.floor(i / SKILL_ORDER.length)) % cell.length];
-    const ctx = ctxOf(c); const S = SCENARIOS[c.context];
+    const S = SCENARIOS[c.context]; const ctx = ctxOf(c) || subjectFor(c, day);
     const base = { focus: SKILLS[sk].lesson, skill: SKILLS[sk].name, format: fmtName(c), formatKey: fk, context: ctx, scenario: ctx };
     if (fk === 'poster') {
-      const job = S && S.jobs.length ? S.jobs[i % S.jobs.length] : { title: ctx ? cap(ctx) + ' — poster' : 'Poster', for: ctx ? 'a poster for ' + ctx : 'a poster on a topic you pick', copy: '' };
+      const job = S && S.jobs.length ? S.jobs[(i + hashOf(c.id)) % S.jobs.length] : { title: cap(ctx), for: 'a poster for ' + ctx, copy: '' };
       const [brief, constraint] = v(BRIEFS[sk][S && S.jobs.length ? c.context : 'own']);
       return Object.assign(base, { piece: 'poster', title: job.title, brief: brief.replace('{job}', job.for).replace(/\bposter for a poster (for|on)\b/gi, 'poster $1').replace(/\ba poster for a poster\b/gi, 'a poster') + (job.copy ? ' Copy: ' + job.copy : ''), constraint });
     }
     const piece = F.pieces.length ? F.pieces[i % F.pieces.length] : (c.own || 'piece');
     const [brief, constraint] = v(FBRIEFS[fk][sk]);
-    return Object.assign(base, { piece, title: cap(piece) + (ctx ? ' — ' + ctx : ''), brief: brief.replace('{piece}', piece) + (ctx ? ' Context: ' + ctx + (S ? ' — ' + S.line : '') : ''), constraint });
+    return Object.assign(base, { piece, title: cap(piece) + (ctx ? ' · ' + cap(ctx) : ''), brief: brief.replace('{piece}', piece) + (ctx ? ' Context: ' + ctx + (S ? '. ' + S.line : '.') : ''), constraint });
   };
   const norm = (s) => String(s).toLowerCase().replace(/\band\b|[^a-z]/g, '');
   const lessonFor = (c, day) => {
@@ -75,7 +81,7 @@
     return hit || { focus: promptFor(c, day).focus, examples: [], what: ['Today’s focus: ' + promptFor(c, day).focus + '.', 'Write down what this skill means to you before you start.'], look: ['One clear decision', 'One deliberate contrast', 'One thing you will not do'], try: ['Make the focus skill the most visible thing in the piece.'] };
   };
   const streak = () => {
-    const days = new Set(pieces.filter((p) => !p.demo || state.settings.demo).map((p) => p.date));
+    const days = new Set(pieces.filter((p) => !p.demo).map((p) => p.date));
     const d = new Date(); let n = 0;
     if (!days.has(dateKey(d))) d.setDate(d.getDate() - 1);
     while (days.has(dateKey(d))) { n++; d.setDate(d.getDate() - 1); }
@@ -118,6 +124,8 @@
   // ---- today ----
   const renderToday = () => {
     const live = state.challenges.filter((c) => currentDay(c));
+    let howHidden = false; try { howHidden = localStorage.getItem('showup.howHidden') === '1'; } catch (e) {}
+    $('howItWorks').hidden = howHidden && state.challenges.length > 0;
     const kinds = [...new Set(live.map((c) => c.practice))];
     if (kinds.length > 1) renderFilters($('todayFilters'), 'today', kinds); else $('todayFilters').innerHTML = '';
     const box = $('todayCards'); box.innerHTML = '';
@@ -132,9 +140,11 @@
       if (running) card.classList.add('running');
       card.append(band, body, foot); card.onclick = () => openDay(c.id); box.append(card);
     });
-    const add = el('button', 'card addcard'); add.type = 'button'; add.append(el('span', 'plus', '+'), el('b', 'ctitle', 'New challenge'));
+    const add = el('button', 'card addcard'); add.type = 'button'; add.append(el('span', 'plus', '+'), el('b', 'ctitle', 'Add a mission'), el('p', 'cfocus', live.length ? 'Start another daily practice.' : 'Pick something to practice. Takes 30 seconds.'));
     add.onclick = () => go('challenges'); box.append(add);
   };
+
+  $('howHide').addEventListener('click', () => { try { localStorage.setItem('showup.howHidden', '1'); } catch (e) {} $('howItWorks').hidden = true; });
 
   // ---- new challenge: format, skills, optional context ----
   let mode = 'solo', pick = null, plan = 'mixed', planSkill = null, ctxPick = '';
@@ -155,7 +165,7 @@
       c.onclick = () => { plan = k; if (k === 'one' && !planSkill) planSkill = 'type'; renderChallenges(); }; pb.append(c);
     });
     const mb = $('modeCards'); mb.innerHTML = '';
-    [['solo', 'Solo', 'Just you.'], ['duo', 'With a friend', 'Same prompts, side by side.']].forEach(([k, n, d]) => {
+    [['solo', 'Solo', 'Just you.'], ['duo', 'With a friend', 'Same prompts each day. You get an invite link to send.']].forEach(([k, n, d]) => {
       const c = el('button', 'tcard small' + (mode === k ? ' on' : '')); c.type = 'button'; c.append(el('b', '', n), el('span', '', d));
       c.onclick = () => { mode = k; renderChallenges(); }; mb.append(c);
     });
@@ -185,7 +195,7 @@
   };
   const openC = () => byId(state.openId);
   const setStep = (s) => {
-    step = s;
+    step = s; if (s === 'sprint') $('spLinks').innerHTML = '';
     ['brief', 'lesson', 'sprint', 'submit'].forEach((k) => { $('s-' + k).hidden = k !== s; });
     document.querySelectorAll('.step').forEach((b) => b.classList.toggle('on', b.dataset.step === s));
     if (s === 'lesson') renderLesson();
@@ -202,11 +212,11 @@
     if (!day) { ['brief', 'lesson', 'sprint', 'submit'].forEach((k) => { $('s-' + k).hidden = true; }); $('dayMeta').textContent = nameOf(c); return; }
     const p = promptFor(c, day);
     $('dayMeta').textContent = 'Day ' + day + ' of ' + c.days;
-    $('pFocus').textContent = 'Day ' + day + ' · ' + p.skill + ' — ' + p.piece + (p.context ? ' · for ' + p.context : '');
+    $('pFocus').textContent = 'Day ' + day + ' · ' + p.skill + ' · ' + p.piece + (p.context ? ' · for ' + p.context : '');
     $('pTitle').textContent = p.title; $('pBrief').textContent = p.brief;
     $('pConstraint').textContent = p.constraint;
     const duo = !!c.shared; $('duelBtn').hidden = duo; $('togetherBtn').hidden = !duo; $('inviteBtn').hidden = !duo;
-    if (duo && window.Duel) window.Duel.presence(c.id, day, (who) => { const h = $('duoHere'); h.hidden = !who; h.textContent = who ? who + ' is here' : ''; });
+    if (duo && window.Duel) window.Duel.presence(c.id, day, (who, waiting) => { const h = $('duoHere'); h.hidden = !who; h.textContent = !who ? '' : waiting ? who + ' is waiting. Press Start together.' : who + ' is here'; });
     else if (window.Duel) window.Duel.presence(null);
     setStep(step);
   };
@@ -254,12 +264,12 @@
   const STAGES = (focus) => [
     { to: .10, name: 'Read + Respond', color: 'mustard', note: ['Who is this for?', 'What should someone notice first? What is the feeling?'] },
     { to: .25, name: 'Gather references', color: 'pink', note: ['Go find references.', 'Pinterest, Are.na, your camera roll. Keep it quick.'] },
-    { to: .50, name: 'Design', color: 'violet', note: ['Start designing.', 'Make, don’t browse.'] },
+    { to: .50, name: 'Design', color: 'violet', note: ['Switch to Figma or Illustrator.', 'Design there. Make, don’t browse.'] },
     { to: .65, name: 'Check ' + focus.toLowerCase(), color: 'green', note: ['What does your eye see first?', 'Is ' + focus.toLowerCase() + ' doing the work?'] },
     { to: .75, name: 'Commit', color: 'red', note: ['Commit to what you have.', 'No new concept.'] },
     { to: .90, name: 'Refine', color: 'violet', note: ['Stop inventing. Start refining.', 'Remove. Resize. Reposition. Retype.'] },
     { to: .95, name: 'Wrap up', color: 'red', note: ['Wrap it up.', 'Fix the one thing that bugs you most.'] },
-    { to: 1.0, name: 'Export', color: 'red', note: ['Export now.', 'PNG or JPG from Figma.'] }
+    { to: 1.0, name: 'Export', color: 'red', note: ['Export now.', 'PNG or JPG from your design tool.'] }
   ];
   let ac = null;
   const chime = (done) => {
@@ -288,15 +298,16 @@
       c, day, p, stages, idx, done, totalMs, e, frac,
       title: c ? (nameOf(c) + ' · Day ' + day) : '', count: done ? 'Time' : s ? pad(idx + 1) + ' / ' + pad(stages.length) : 'Ready',
       clock: clock(Math.ceil((totalMs - e) / 1000)), total: stages.length, paused: !!(s && s.pausedAt),
-      stage: done ? 'Pens down' : s ? st.name : 'Ready', notes: done ? ['Pens down.', 'Export from Figma, then paste it on the wall.'] : s ? st.note : ['Start when you are ready.'],
+      stage: done ? 'Pens down' : s ? st.name : 'Ready', notes: done ? ['Pens down.', 'Export from your design tool, then paste it on the wall.'] : s ? st.note : ['Start when you are ready.', 'You will design in your own tool. This timer coaches you.'],
       color: done ? colorOf(c ? c.practice : 'poster') : s ? COLORS[st.color] : colorOf(c ? c.practice : 'poster')
     };
   };
   const widgetActions = {
     pause: () => togglePause(), next: () => nextStage(),
     back: () => { try { window.focus(); } catch (e) {} },
+    float: () => Widget.open(widgetActions).then(() => { tick(true); renderSprintPane(); }),
     submit: () => { const s = state.sprint; Widget.close(); try { window.focus(); } catch (e) {} if (s) openDay(s.challengeId, 'submit'); },
-    onClosed: () => { renderSprintPane(); }
+    onClosed: () => { if (state.sprint && !sprintView().done) { Widget.showMini(widgetActions); Widget.update(sprintView()); } renderSprintPane(); }
   };
   const startSprint = async () => {
     const c = openC(); const day = currentDay(c); if (!day) return;
@@ -316,7 +327,7 @@
   };
   const stopSprint = () => { state.sprint = null; save(); Widget.close(); lastStage = -1; document.title = 'Show Up'; renderSprintPane(); renderRun(); };
   $('spStart').addEventListener('click', startSprint);
-  $('spPop').addEventListener('click', () => Widget.open(widgetActions).then(() => tick(true)));
+  $('spPop').addEventListener('click', () => Widget.open(widgetActions).then(() => { tick(true); renderSprintPane(); }));
   $('spPause').addEventListener('click', togglePause);
   $('spNext').addEventListener('click', nextStage);
   $('spReset').addEventListener('click', () => { if (confirm('Reset this sprint?')) stopSprint(); });
@@ -330,7 +341,18 @@
     $('spStage').style.color = mine ? v.color : '';
     const n = $('spNote'); n.innerHTML = ''; (mine ? v.notes : []).forEach((t) => n.append(el('span', '', t)));
     $('spStart').hidden = !!mine; $('spPause').hidden = !mine || v.done; $('spNext').hidden = !mine || v.done; $('spReset').hidden = !mine;
-    $('spPop').hidden = !mine || v.done || Widget.mode === 'pip';
+    $('spPop').hidden = !mine || v.done || Widget.mode === 'pip' || !Widget.supported;
+    $('spElseP').textContent = !mine ? 'Press Start and a small timer ' + (Widget.supported ? 'floats on top of your other apps' : 'appears in the corner') + '. Leave it open, switch to Figma, Illustrator, Pinterest, or paper, and make the piece there. The timer tells you when to move on.'
+      : v.done ? 'Time. Export a PNG or JPG from your design tool, then paste it up here.'
+      : Widget.mode === 'pip' ? 'The timer is floating on top of your other apps. Leave it open and go design in Figma, Illustrator, or on paper.'
+      : Widget.supported ? 'The timer is in the corner of this tab. Press Float timer on top so it stays visible while you work in Figma or Illustrator.'
+      : 'This browser cannot float the timer over other apps. Keep this tab visible next to your design tool, or use Chrome or Edge.';
+    const lk = $('spLinks'); if (!lk.childElementCount) {
+      const q = encodeURIComponent(((v.p && v.p.format) || 'poster') + ' ' + ((v.p && v.p.skill) || '') + ' design');
+      [['Open Figma', 'https://www.figma.com/files/'], ['Pinterest refs', 'https://www.pinterest.com/search/pins/?q=' + q], ['Are.na refs', 'https://www.are.na/search/' + q]].forEach(([t, u]) => {
+        const a = el('a', 'btn quiet', t + ' ↗'); a.href = u; a.target = '_blank'; a.rel = 'noopener'; lk.append(a);
+      });
+    }
     
     $('spPause').textContent = v.paused ? 'Resume' : 'Pause';
     $('spHint').innerHTML = '';
@@ -385,6 +407,9 @@
     const f = [...(e.clipboardData ? e.clipboardData.files : [])].find((x) => x.type.startsWith('image/'));
     if (f) { e.preventDefault(); setUpload(f); }
   });
+  let fbDepth = 'quick';
+  $('fbDepth').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; fbDepth = b.value; $('fbDepth').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); });
+  const ask = (p, depth) => window.critique({ blob: p.blob, prompt: p.prompt, practice: p.practice, reflection: p.reflection, depth }).then(async (cr) => { p.critique = cr; await DB.put('pieces', p); return cr; });
   $('reflectForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!upload) { $('saveMsg').textContent = 'Add your exported piece first.'; drop.classList.add('nudge'); setTimeout(() => drop.classList.remove('nudge'), 600); return; }
@@ -395,13 +420,27 @@
     if (state.sprint && state.sprint.challengeId === c.id) stopSprint();
     upload = null; e.target.reset(); drop.querySelectorAll('img').forEach((n) => n.remove()); drop.classList.remove('has'); $('dropHint').hidden = false;
     step = 'brief'; renderSide();
-    const crit = window.critique({ blob: piece.blob, prompt: piece.prompt, practice: piece.practice, reflection: piece.reflection })
-      .then(async (cr) => { piece.critique = cr; await DB.put('pieces', piece); return cr; });
-    crit.catch(() => {});
+    const depth = fbDepth; piece.depth = depth;
+    const crit = depth === 'skip' ? null : ask(piece, depth);
+    if (crit) crit.catch(() => {});
     pasting = piece.id; go('wall');
+    await new Promise((r) => setTimeout(r, 900)); // a beat to see the wall before the roller starts
     await wallPaste(piece.id); pasting = null;
-    Feedback.open(piece, blobUrl(piece.id, piece.blob), crit, { onWall: () => Feedback.close(), retry: () => window.critique({ blob: piece.blob, prompt: piece.prompt, practice: piece.practice, reflection: piece.reflection }).then(async (cr) => { piece.critique = cr; await DB.put('pieces', piece); return cr; }) });
+    pastedCard(piece, crit, depth);
   });
+  // After the paste-up, stay on the wall. Feedback waits until the person asks for it.
+  const pastedCard = (piece, crit, depth) => {
+    const box = $('pasted'); box.innerHTML = ''; box.hidden = false;
+    const close = () => { box.hidden = true; box.innerHTML = ''; };
+    const status = el('p', 'pasted-p', crit ? 'Feedback is on its way. Look around the wall, then open it when you are ready.' : 'You skipped feedback. Click your poster any time to ask for it.');
+    box.append(el('p', 'pasted-h', 'Pasted up.'), status);
+    const row = el('div', 'row');
+    const see = el('button', 'btn hot', crit ? 'See feedback' : 'Get feedback now');
+    see.onclick = () => { close(); Feedback.open(piece, blobUrl(piece.id, piece.blob), crit || ask(piece, 'quick'), { onWall: () => Feedback.close(), retry: () => ask(piece, depth === 'deep' ? 'deep' : 'quick') }); };
+    const stay = el('button', 'btn quiet', 'Keep looking'); stay.onclick = close;
+    row.append(see, stay); box.append(row);
+    if (crit) crit.then(() => { if (box.contains(status)) status.textContent = 'Feedback is ready.'; }, () => { if (box.contains(status)) status.textContent = 'Feedback could not load. You can try again from your poster.'; });
+  };
 
   // Non-poster work is pasted up as a die-cut print: app = iPhone mockup, web = browser window, brand = clean sheet.
   const SHEET_V = 2;
@@ -481,17 +520,45 @@
     await refreshSheets();
     const list = visible();
     $('stats').textContent = list.length + (list.length === 1 ? ' piece' : ' pieces');
-    if (await has3d()) Wall3D.render($('wall3d'), list, srcOf, (id) => openPiece(id), pasting);
+    $('demoBtn').hidden = !window.DEMO; $('demoBtn').textContent = state.settings.demo ? 'Hide example posters' : 'Show example posters';
+    if (!pasting) $('pasted').hidden = true;
+    const three = await has3d(); $('wallCtl').hidden = false;
+    if (three) Wall3D.render($('wall3d'), list, srcOf, (id) => openPiece(id), pasting);
     else Wall.render($('wall'), list, mediaFor, (id) => openPiece(id));
   };
   const wallPaste = async (id) => { if (await has3d()) { await Wall3D.ready; await Wall3D.paste(id); } else await Wall.paste($('wall'), id); };
-  $('wallScroll').addEventListener('wheel', (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { $('wallScroll').scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
+  // 2D fallback: native scroll on both axes, plus drag to pan.
+  (() => {
+    const sc = $('wallScroll'); let d = null;
+    sc.addEventListener('pointerdown', (e) => { if (e.button === 0) d = { x: e.clientX, y: e.clientY, l: sc.scrollLeft, t: sc.scrollTop, moved: false }; });
+    addEventListener('pointermove', (e) => { if (!d) return; const dx = e.clientX - d.x, dy = e.clientY - d.y; if (Math.hypot(dx, dy) > 6) d.moved = true; if (d.moved) { sc.scrollLeft = d.l - dx; sc.scrollTop = d.t - dy; } });
+    addEventListener('pointerup', () => { if (d && d.moved) sc.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); }, { capture: true, once: true }); d = null; });
+  })();
+  let zoom2d = 1;
+  const wallNav = (a) => {
+    if (use3d) { Wall3D.nav(a); return; }
+    const sc = $('wallScroll'); const px = 260;
+    if (a === 'left') sc.scrollBy({ left: -px, behavior: 'smooth' }); else if (a === 'right') sc.scrollBy({ left: px, behavior: 'smooth' });
+    else if (a === 'up') sc.scrollBy({ top: -px, behavior: 'smooth' }); else if (a === 'down') sc.scrollBy({ top: px, behavior: 'smooth' });
+    else { zoom2d = a === 'fit' ? 1 : Math.max(.5, Math.min(2, zoom2d * (a === 'in' ? 1.2 : 1 / 1.2))); $('wall').style.zoom = zoom2d; }
+  };
+  const hintOff = () => { const h = document.querySelector('.wallhint'); if (h) h.hidden = true; };
+  ['pointerdown', 'wheel'].forEach((t) => $('wallCtl').parentElement.addEventListener(t, hintOff, { passive: true }));
+  $('wallCtl').addEventListener('click', (e) => { const b = e.target.closest('[data-w]'); if (b) wallNav(b.dataset.w); });
+  const KEYS = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', '+': 'in', '=': 'in', '-': 'out', '_': 'out', '0': 'fit' };
+  document.addEventListener('keydown', (e) => {
+    if (view !== 'wall' || !$('fb').hidden || !$('modal').hidden || e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    const a = KEYS[e.key]; if (a) { e.preventDefault(); hintOff(); wallNav(a); }
+  });
+  $('demoBtn').addEventListener('click', async () => { state.settings.demo = !state.settings.demo; save(); await setDemo(state.settings.demo); renderSide(); renderWall(); });
 
   const openPiece = (id) => {
     const p = pieces.find((x) => x.id === id); if (!p) return;
-    const crit = p.critique ? Promise.resolve(p.critique) : p.svg ? Promise.reject(new Error('Demo poster.')) : window.critique({ blob: p.blob, prompt: p.prompt, practice: p.practice, reflection: p.reflection }).then(async (cr) => { p.critique = cr; await DB.put('pieces', p); return cr; });
+    const d = p.depth === 'deep' ? 'deep' : 'quick';
+    const crit = p.critique ? Promise.resolve(p.critique) : p.svg ? Promise.reject(new Error('This is an example poster.')) : ask(p, d);
     crit.catch(() => {});
-    Feedback.open(p, srcOf(p), crit, { onWall: () => Feedback.close(), retry: p.svg ? null : () => window.critique({ blob: p.blob, prompt: p.prompt, practice: p.practice, reflection: p.reflection }).then(async (cr) => { p.critique = cr; await DB.put('pieces', p); return cr; }), remove: async () => { if (!confirm('Take this poster down?')) return; await DB.del('pieces', p.id); await loadPieces(); Feedback.close(); renderSide(); renderWall(); } });
+    $('pasted').hidden = true;
+    Feedback.open(p, srcOf(p), crit, { onWall: () => Feedback.close(), retry: p.svg ? null : () => ask(p, d), deeper: p.svg || d === 'deep' ? null : () => { p.depth = 'deep'; return ask(p, 'deep'); }, remove: async () => { if (!confirm('Take this poster down?')) return; await DB.del('pieces', p.id); await loadPieces(); Feedback.close(); renderSide(); renderWall(); } });
   };
 
   // ---- export / import ----
@@ -539,7 +606,7 @@
   const modal = (build) => { const m = $('modal'), b = $('mBox'); b.innerHTML = ''; b.className = 'm-box setup'; b.style.padding = '34px'; build(b, () => { m.hidden = true; }); m.hidden = false; m.onclick = (e) => { if (e.target === m) m.hidden = true; }; };
   const nameInput = () => { const i = el('input', 'nm'); i.placeholder = 'Your name'; i.value = myName(); i.maxLength = 24; i.oninput = () => localStorage.setItem('showup.name', i.value.trim()); return i; };
   const invite = (c) => modal((b, close) => {
-    b.append(el('h2', 'm-h', 'Invite a friend'));
+    b.append(el('h2', 'm-h', 'Invite a friend'), el('p', 'mid', 'Send this link. Your friend gets the same mission and the same brief each day. When you both have a day open at the same time, press Start together to sprint live.'));
     const nm = nameInput(); nm.oninput = () => { localStorage.setItem('showup.name', nm.value.trim()); c.shared.host = c.shared.host || nm.value.trim(); if (!c.shared.members[0]) c.shared.members[0] = nm.value.trim(); save(); inp.value = inviteLink(c); };
     const inp = el('input', 'lk'); inp.readOnly = true; inp.value = inviteLink(c); inp.id = 'inviteLink'; inp.onclick = () => inp.select();
     const cp = el('button', 'btn hot', 'Copy link'); cp.onclick = async () => { inp.value = inviteLink(c); try { await navigator.clipboard.writeText(inp.value); } catch (e) { inp.select(); document.execCommand('copy'); } cp.textContent = 'Copied'; };
@@ -547,7 +614,9 @@
     const row = el('div', 'row'); row.append(cp, done); b.append(nm, inp, row);
   });
   $('inviteBtn').addEventListener('click', () => { const c = openC(); if (c) invite(c); });
-  $('togetherBtn').addEventListener('click', () => { const c = openC(); const day = c && currentDay(c); if (day && window.Duel) window.Duel.together(c.id, day); });
+  const notice = (title, text) => modal((b, close) => { b.append(el('h2', 'm-h', title), el('p', 'mid', text)); const ok = el('button', 'btn hot', 'OK'); ok.onclick = close; const row = el('div', 'row'); row.style.marginTop = '22px'; row.append(ok); b.append(row); });
+  const noLive = () => notice('Live sessions are not available here', 'The connection library did not load. Check your internet, pause strict ad or script blockers, and reload. You can still run today\u2019s sprint solo with the same brief.');
+  $('togetherBtn').addEventListener('click', () => { const c = openC(); const day = c && currentDay(c); if (!day) return; if (!window.Duel) { noLive(); return; } window.Duel.together(c.id, day); });
   const handleJoin = () => {
     const raw = params.get('join'); if (!raw) return false;
     let o; try { o = b64d(raw); } catch (e) { return false; }
@@ -575,7 +644,7 @@
     },
     setCritique: async (id, cr) => { const p = pieces.find((x) => x.id === id); if (p) { p.critique = cr; await DB.put('pieces', p); } },
     showWall: async (ids) => { pasting = ids[0]; go('wall'); for (const id of ids) await wallPaste(id); pasting = null; },
-    openPiece: (id) => openPiece(id),
+    openPiece: (id) => openPiece(id), notice,
     srcOf: (id) => { const p = pieces.find((x) => x.id === id); return p ? srcOf(p) : ''; }
   };
 
